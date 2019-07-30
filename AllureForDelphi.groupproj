@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{06E91556-6FDA-4798-9ABE-EB06E7DF322E}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="allure-delphi\AllureDelphi.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Tests\AllureDelphiTest.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="AllureDelphi">
+        <MSBuild Projects="allure-delphi\AllureDelphi.dproj"/>
+    </Target>
+    <Target Name="AllureDelphi:Clean">
+        <MSBuild Projects="allure-delphi\AllureDelphi.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="AllureDelphi:Make">
+        <MSBuild Projects="allure-delphi\AllureDelphi.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="AllureDelphiTest">
+        <MSBuild Projects="Tests\AllureDelphiTest.dproj"/>
+    </Target>
+    <Target Name="AllureDelphiTest:Clean">
+        <MSBuild Projects="Tests\AllureDelphiTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="AllureDelphiTest:Make">
+        <MSBuild Projects="Tests\AllureDelphiTest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="AllureDelphi;AllureDelphiTest"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="AllureDelphi:Clean;AllureDelphiTest:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="AllureDelphi:Make;AllureDelphiTest:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

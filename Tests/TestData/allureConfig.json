@@ -1,0 +1,42 @@
+﻿{
+  "allure": {
+    "title": "5994A3F7-AF84-46AD-9393-000BB45553CC",
+    "directory": "allure-results",
+    "links": [
+      "https://example.org/{issue}",
+      "https://example.org/{tms}"
+    ]
+  },
+  "specflow": {
+    "stepArguments": {
+      "convertToParameters": "true",
+      "paramNameRegex": "^a.*",
+      "paramValueRegex": "^v.*"
+    },
+    "grouping": {
+      "suites": {
+        "parentSuite": "^(ui|api)",
+        "suite": "^(core|sales|aux)",
+        "subSuite": "^(create|update|delete)"
+      },
+      "behaviors": {
+        "epic": "^epic:?(.+)",
+        "story": "^story:?(.+)"
+      },
+      "packages": {
+        "package": "^package:?(.+)",
+        "testClass": "^class:?(.+)",
+        "testMethod": "^method:?(.+)"
+      }
+    },
+    "labels": {
+      "owner": "^owner:?(.+)",
+      "severity": "^(normal|blocker|critical|minor|trivial)"
+    },
+    "links": {
+      "link": "^link:(.+)",
+      "issue": "^\\d+",
+      "tms": "^tms:(\\d+)"
+    }
+  }
+}
