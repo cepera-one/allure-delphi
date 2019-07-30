@@ -27,6 +27,28 @@ type
     function ToString: string;
   end;
 
+  TAllureUpdateActionHelper = class(TInterfacedObject
+    ,IAllureTestResultContainerAction
+    ,IAllureFixtureResultAction
+    ,IAllureTestResultAction
+    ,IAllureStepResultAction
+  )
+  public type
+    TAllureObjectProc = reference to procedure (AObject: IUnknown);
+    TUpdateTestProc = reference to procedure (const TestResult: IAllureTestResult);
+    TUpdateContainerProc = reference to procedure (const Container: IAllureTestResultContainer);
+    TUpdateStepProc = reference to procedure (const StepResult: IAllureStepResult);
+    TUpdateFixtureProc = reference to procedure (const FixtureResult: IAllureFixtureResult);
+  private
+    fProc: TAllureObjectProc;
+  public
+    constructor Create(AProc: TAllureObjectProc);
+    procedure Invoke(const Container: IAllureTestResultContainer); overload; safecall;
+    procedure Invoke(const FixtureResult: IAllureFixtureResult); overload; safecall;
+    procedure Invoke(const TestResult: IAllureTestResult); overload; safecall;
+    procedure Invoke(const StepResult: IAllureStepResult); overload; safecall;
+  end;
+
   TAllureHelper = record
   private
     fDllHandle: THandle;
@@ -38,6 +60,14 @@ type
     class procedure Initialize; static;
     class procedure Finalize; static;
     property Lifecycle: IAllureLifecycle read GetLifecycle;
+
+    procedure UpdateTestCase(UpdateProc: TAllureUpdateActionHelper.TUpdateTestProc); overload;
+    procedure UpdateTestCase(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateTestProc); overload;
+    procedure UpdateTestContainer(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateContainerProc);
+    procedure UpdateStep(UpdateProc: TAllureUpdateActionHelper.TUpdateStepProc); overload;
+    procedure UpdateStep(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateStepProc); overload;
+    procedure UpdateFixture(UpdateProc: TAllureUpdateActionHelper.TUpdateFixtureProc); overload;
+    procedure UpdateFixture(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateFixtureProc); overload;
   end;
 
 var
@@ -106,6 +136,103 @@ begin
   end;
 end;
 
+procedure TAllureHelper.UpdateFixture(const Uuid: TAllureString;
+  UpdateProc: TAllureUpdateActionHelper.TUpdateFixtureProc);
+begin
+  Lifecycle.UpdateFixture(Uuid, TAllureUpdateActionHelper.Create(
+    procedure (AObject: IUnknown)
+    var
+      intf: IAllureFixtureResult;
+    begin
+      if (AObject<>nil) and (AObject.QueryInterface(IAllureFixtureResult, intf)=0) then
+        UpdateProc(intf);
+    end
+  ));
+end;
+
+procedure TAllureHelper.UpdateFixture(
+  UpdateProc: TAllureUpdateActionHelper.TUpdateFixtureProc);
+begin
+  Lifecycle.UpdateFixture(TAllureUpdateActionHelper.Create(
+    procedure (AObject: IUnknown)
+    var
+      intf: IAllureFixtureResult;
+    begin
+      if (AObject<>nil) and (AObject.QueryInterface(IAllureFixtureResult, intf)=0) then
+        UpdateProc(intf);
+    end
+  ));
+end;
+
+procedure TAllureHelper.UpdateStep(const Uuid: TAllureString;
+  UpdateProc: TAllureUpdateActionHelper.TUpdateStepProc);
+begin
+  Lifecycle.UpdateStep(Uuid, TAllureUpdateActionHelper.Create(
+    procedure (AObject: IUnknown)
+    var
+      intf: IAllureStepResult;
+    begin
+      if (AObject<>nil) and (AObject.QueryInterface(IAllureStepResult, intf)=0) then
+        UpdateProc(intf);
+    end
+  ));
+end;
+
+procedure TAllureHelper.UpdateStep(
+  UpdateProc: TAllureUpdateActionHelper.TUpdateStepProc);
+begin
+  Lifecycle.UpdateStep(TAllureUpdateActionHelper.Create(
+    procedure (AObject: IUnknown)
+    var
+      intf: IAllureStepResult;
+    begin
+      if (AObject<>nil) and (AObject.QueryInterface(IAllureStepResult, intf)=0) then
+        UpdateProc(intf);
+    end
+  ));
+end;
+
+procedure TAllureHelper.UpdateTestCase(const Uuid: TAllureString;
+  UpdateProc: TAllureUpdateActionHelper.TUpdateTestProc);
+begin
+  Lifecycle.UpdateTestCase(Uuid, TAllureUpdateActionHelper.Create(
+    procedure (AObject: IUnknown)
+    var
+      intf: IAllureTestResult;
+    begin
+      if (AObject<>nil) and (AObject.QueryInterface(IAllureTestResult, intf)=0) then
+        UpdateProc(intf);
+    end
+  ));
+end;
+
+procedure TAllureHelper.UpdateTestContainer(const Uuid: TAllureString;
+  UpdateProc: TAllureUpdateActionHelper.TUpdateContainerProc);
+begin
+  Lifecycle.UpdateTestContainer(Uuid, TAllureUpdateActionHelper.Create(
+    procedure (AObject: IUnknown)
+    var
+      intf: IAllureTestResultContainer;
+    begin
+      if (AObject<>nil) and (AObject.QueryInterface(IAllureTestResultContainer, intf)=0) then
+        UpdateProc(intf);
+    end
+  ));
+end;
+
+procedure TAllureHelper.UpdateTestCase(UpdateProc: TAllureUpdateActionHelper.TUpdateTestProc);
+begin
+  Lifecycle.UpdateTestCase(TAllureUpdateActionHelper.Create(
+    procedure (AObject: IUnknown)
+    var
+      intf: IAllureTestResult;
+    begin
+      if (AObject<>nil) and (AObject.QueryInterface(IAllureTestResult, intf)=0) then
+        UpdateProc(intf);
+    end
+  ));
+end;
+
 { TAllureTimeHelper }
 
 class function TAllureTimeHelper.Cast(at: TAllureTime): TDateTime;
@@ -171,6 +298,36 @@ begin
     asInterrupted: result := 'interrupted';
     else result := 'unknown';
   end;
+end;
+
+{ TAllureUpdateActionHelper }
+
+constructor TAllureUpdateActionHelper.Create(AProc: TAllureObjectProc);
+begin
+  inherited Create;
+  fProc := AProc;
+end;
+
+procedure TAllureUpdateActionHelper.Invoke(
+  const FixtureResult: IAllureFixtureResult);
+begin
+  fProc(FixtureResult);
+end;
+
+procedure TAllureUpdateActionHelper.Invoke(
+  const Container: IAllureTestResultContainer);
+begin
+  fProc(Container);
+end;
+
+procedure TAllureUpdateActionHelper.Invoke(const TestResult: IAllureTestResult);
+begin
+  fProc(TestResult);
+end;
+
+procedure TAllureUpdateActionHelper.Invoke(const StepResult: IAllureStepResult);
+begin
+  fProc(StepResult);
 end;
 
 initialization

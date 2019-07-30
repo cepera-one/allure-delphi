@@ -178,6 +178,8 @@ type
 
     property FixtureResult[Index: Integer]: IAllureFixtureResult read GetFixtureResult;
     property FixtureResultCount: Integer read GetFixtureResultCount;
+
+    procedure Add(const Fixture: IAllureFixtureResult); safecall;
   end;
 
   IAllureStatusDetails = interface
@@ -211,6 +213,8 @@ type
 
     property Step[Index: Integer]: IAllureStepResult read GetStep;
     property StepCount: Integer read GetStepCount;
+
+    procedure Add(const AStep: IAllureStepResult); safecall;
   end;
 
   IAllureParameter = interface
@@ -379,6 +383,9 @@ type
     procedure AssignConfigFromFile(const JsonConfigurationFile: TAllureString = ''); safecall;
 
     function CreateTestResult: IAllureTestResult; safecall;
+    function CreateTestResultContainer: IAllureTestResultContainer; safecall;
+    function CreateStepResult: IAllureStepResult; safecall;
+    function CreateFixture: IAllureFixtureResult; safecall;
 
     // TestContainer
     (*

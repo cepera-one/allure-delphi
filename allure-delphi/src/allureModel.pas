@@ -112,7 +112,7 @@ type
 
   TAllureParameters = class(TAllureInterfacedObject, IAllureParameters)
   private
-    fList: TAllureThreadSafeList<TAllureParameter>;
+    fList: TAllureThreadSafeObjectList<TAllureParameter>;
   public
     constructor Create;
     destructor Destroy; override;
@@ -147,7 +147,7 @@ type
 
   TAllureAttachments = class(TAllureInterfacedObject, IAllureAttachments)
   private
-    fList: TAllureThreadSafeList<TAllureAttachment>;
+    fList: TAllureThreadSafeObjectList<TAllureAttachment>;
   public
     constructor Create;
     destructor Destroy; override;
@@ -218,7 +218,7 @@ type
 
   TAllureStepResultList = class(TAllureInterfacedObject, IAllureStepResultList)
   private
-    fList: TAllureThreadSafeList<TAllureStepResult>;
+    fList: TAllureThreadSafeObjectList<TAllureStepResult>;
   public
     constructor Create;
     destructor Destroy; override;
@@ -228,6 +228,8 @@ type
 
     property Step[Index: Integer]: IAllureStepResult read GetStep;
     property StepCount: Integer read GetStepCount;
+
+    procedure Add(const AStep: IAllureStepResult); safecall;
   end;
 
   TAllureLabel = class(TAllureInterfacedObject, IAllureLabel)
@@ -267,7 +269,7 @@ type
 
   TAllureLabels = class(TAllureInterfacedObject, IAllureLabels)
   private
-    fList: TAllureThreadSafeList<TAllureLabel>;
+    fList: TAllureThreadSafeObjectList<TAllureLabel>;
   public
     constructor Create;
     destructor Destroy; override;
@@ -309,7 +311,7 @@ type
 
   TAllureLinkList = class(TAllureInterfacedObject, IAllureLinkList)
   private
-    fList: TAllureThreadSafeList<TAllureLink>;
+    fList: TAllureThreadSafeObjectList<TAllureLink>;
   public
     constructor Create;
     destructor Destroy; override;
@@ -386,7 +388,7 @@ type
 
   TAllureFixtureResultList = class(TAllureInterfacedObject, IAllureFixtureResultList)
   private
-    fList: TAllureThreadSafeList<TAllureFixtureResult>;
+    fList: TAllureThreadSafeObjectList<TAllureFixtureResult>;
   public
     constructor Create;
     destructor Destroy; override;
@@ -396,6 +398,8 @@ type
 
     property FixtureResult[Index: Integer]: IAllureFixtureResult read GetFixtureResult;
     property FixtureResultCount: Integer read GetFixtureResultCount;
+
+    procedure Add(const Fixture: IAllureFixtureResult); safecall;
   end;
 
   TAllureTestResultContainer = class(TAllureExecutableItem, IAllureTestResultContainer)
@@ -410,9 +414,16 @@ type
     fBefores: TAllureFixtureResultList;
     fAfters: TAllureFixtureResultList;
     fLinks: TAllureLinkList;
+    function GetLinksAssigned: TAllureBoolean;
+    function GetAftersAssigned: TAllureBoolean;
+    function GetBeforesAssigned: TAllureBoolean;
   public
     constructor Create;
     destructor Destroy; override;
+
+    property LinksAssigned: TAllureBoolean read GetLinksAssigned;
+    property BeforesAssigned: TAllureBoolean read GetBeforesAssigned;
+    property AftersAssigned: TAllureBoolean read GetAftersAssigned;
   public
     function GetUUID: TAllureString; safecall;
     procedure SetUUID(const AValue: TAllureString); safecall;
@@ -758,12 +769,11 @@ end;
 constructor TAllureParameters.Create;
 begin
   inherited Create;
-  fList := TAllureThreadSafeList<TAllureParameter>.Create;
+  fList := TAllureThreadSafeObjectList<TAllureParameter>.Create;
 end;
 
 destructor TAllureParameters.Destroy;
 begin
-  fList.ClearObjects;
   fList.Free;
   inherited;
 end;
@@ -826,12 +836,11 @@ end;
 constructor TAllureAttachments.Create;
 begin
   inherited Create;
-  fList := TAllureThreadSafeList<TAllureAttachment>.Create;
+  fList := TAllureThreadSafeObjectList<TAllureAttachment>.Create;
 end;
 
 destructor TAllureAttachments.Destroy;
 begin
-  fList.ClearObjects;
   fList.Free;
   inherited;
 end;
@@ -848,15 +857,20 @@ end;
 
 { TAllureStepResultList }
 
+procedure TAllureStepResultList.Add(const AStep: IAllureStepResult);
+begin
+  if AStep=nil then exit;
+  fList.Add(TAllureInterfacedObject.ToClass<TAllureStepResult>(AStep));
+end;
+
 constructor TAllureStepResultList.Create;
 begin
   inherited Create;
-  fList := TAllureThreadSafeList<TAllureStepResult>.Create;
+  fList := TAllureThreadSafeObjectList<TAllureStepResult>.Create;
 end;
 
 destructor TAllureStepResultList.Destroy;
 begin
-  fList.ClearObjects;
   fList.Free;
   inherited;
 end;
@@ -927,11 +941,21 @@ begin
   result := fAfters;
 end;
 
+function TAllureTestResultContainer.GetAftersAssigned: TAllureBoolean;
+begin
+  result := fAfters<>nil;
+end;
+
 function TAllureTestResultContainer.GetBefores: IAllureFixtureResultList;
 begin
   if fBefores=nil then
     fBefores := TAllureFixtureResultList.Create;
   result := fBefores;
+end;
+
+function TAllureTestResultContainer.GetBeforesAssigned: TAllureBoolean;
+begin
+  result := fBefores<>nil;
 end;
 
 function TAllureTestResultContainer.GetChildren: IAllureStringSet;
@@ -956,6 +980,11 @@ begin
   if fLinks=nil then
     fLinks := TAllureLinkList.Create;
   result := fLinks;
+end;
+
+function TAllureTestResultContainer.GetLinksAssigned: TAllureBoolean;
+begin
+  result := fLinks<>nil;
 end;
 
 function TAllureTestResultContainer.GetName: TAllureString;
@@ -1011,15 +1040,20 @@ end;
 
 { TAllureFixtureResultList }
 
+procedure TAllureFixtureResultList.Add(const Fixture: IAllureFixtureResult);
+begin
+  if Fixture=nil then exit;
+  fList.Add(TAllureInterfacedObject.ToClass<TAllureFixtureResult>(Fixture));
+end;
+
 constructor TAllureFixtureResultList.Create;
 begin
   inherited Create;
-  fList := TAllureThreadSafeList<TAllureFixtureResult>.Create;
+  fList := TAllureThreadSafeObjectList<TAllureFixtureResult>.Create;
 end;
 
 destructor TAllureFixtureResultList.Destroy;
 begin
-  fList.ClearObjects;
   fList.Free;
   inherited;
 end;
@@ -1194,12 +1228,11 @@ end;
 constructor TAllureLabels.Create;
 begin
   inherited Create;
-  fList := TAllureThreadSafeList<TAllureLabel>.Create;
+  fList := TAllureThreadSafeObjectList<TAllureLabel>.Create;
 end;
 
 destructor TAllureLabels.Destroy;
 begin
-  fList.ClearObjects;
   fList.Free;
   inherited;
 end;
@@ -1295,12 +1328,11 @@ end;
 constructor TAllureLinkList.Create;
 begin
   inherited Create;
-  fList := TAllureThreadSafeList<TAllureLink>.Create;
+  fList := TAllureThreadSafeObjectList<TAllureLink>.Create;
 end;
 
 destructor TAllureLinkList.Destroy;
 begin
-  fList.ClearObjects;
   fList.Free;
   inherited;
 end;

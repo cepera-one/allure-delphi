@@ -245,8 +245,87 @@ end;
 
 procedure TAllureFileSystemResultsWriter.WriteTestContainer(
   TestResultContainer: TAllureTestResultContainer);
+var
+  Builder: TJSONObjectBuilder;
+  Writer: TJsonTextWriter;
+  StreamWriter: TStreamWriter;
+  fn: string;
+  tob, jso: TJSONCollectionBuilder.TPairs;
+  ar: TJSONCollectionBuilder.TElements;
+  i: Integer;
 begin
-
+  if TestResultContainer=nil then exit;
+  ForceDirectories(fOutputDirectory);
+  fn := fOutputDirectory + '\' + TestResultContainer.UUID + TEST_RESULT_CONTAINER_FILE_SUFFIX;
+  StreamWriter := TStreamWriter.Create(fn);
+  Writer := TJsonTextWriter.Create(StreamWriter);
+  Writer.Formatting := TJsonFormatting.Indented;
+  Builder := TJSONObjectBuilder.Create(Writer);
+  try
+    tob := Builder.BeginObject;
+    try
+      tob.Add('uuid', TestResultContainer.UUID);
+      tob.Add('name', TestResultContainer.Name);
+      if TestResultContainer.Description<>'' then
+        tob.Add('description', TestResultContainer.Description);
+      if TestResultContainer.DescriptionHtml<>'' then
+        tob.Add('descriptionHtml', TestResultContainer.DescriptionHtml);
+      tob.Add('start', TestResultContainer.Start.ToString);
+      tob.Add('stop', TestResultContainer.Stop.ToString);
+      if TestResultContainer.LinksAssigned then
+        WriteLinks(TAllureInterfacedObject.ToClass<TAllureLinkList>(TestResultContainer.Links), tob);
+      ar := tob.BeginArray('children');
+      try
+        for i := 0 to TestResultContainer.Children.Count-1 do begin
+          ar.Add(TestResultContainer.Children.Value[i]);
+        end;
+      finally
+        ar.EndArray;
+      end;
+      if TestResultContainer.BeforesAssigned then begin
+        ar := tob.BeginArray('befores');
+        try
+          for i := 0 to TestResultContainer.Befores.FixtureResultCount-1 do begin
+            jso := ar.BeginObject;
+            try
+              WriteExecutableItem(
+                TAllureInterfacedObject.ToClass<TAllureExecutableItem>(
+                  TestResultContainer.Befores.FixtureResult[i]
+                ), jso);
+            finally
+              jso.EndObject;
+            end;
+          end;
+        finally
+          ar.EndArray;
+        end;
+      end;
+      if TestResultContainer.AftersAssigned then begin
+        ar := tob.BeginArray('afters');
+        try
+          for i := 0 to TestResultContainer.Afters.FixtureResultCount-1 do begin
+            jso := ar.BeginObject;
+            try
+              WriteExecutableItem(
+                TAllureInterfacedObject.ToClass<TAllureExecutableItem>(
+                  TestResultContainer.Afters.FixtureResult[i]
+                ), jso);
+            finally
+              jso.EndObject;
+            end;
+          end;
+        finally
+          ar.EndArray;
+        end;
+      end;
+    finally
+      tob.EndObject;
+    end;
+  finally
+    FreeAndNil(Builder);
+    FreeAndNil(Writer);
+    FreeAndNil(StreamWriter);
+  end;
 end;
 
 end.

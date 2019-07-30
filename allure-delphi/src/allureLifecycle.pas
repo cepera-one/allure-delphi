@@ -43,6 +43,9 @@ type
     procedure AssignConfigFromFile(const JsonConfigurationFile: TAllureString = ''); safecall;
 
     function CreateTestResult: IAllureTestResult; safecall;
+    function CreateTestResultContainer: IAllureTestResultContainer; safecall;
+    function CreateStepResult: IAllureStepResult; safecall;
+    function CreateFixture: IAllureFixtureResult; safecall;
 
     // TestContainer
     (*
@@ -311,11 +314,39 @@ begin
   result := TAllureFileSystemResultsWriter.Create(ResultsDirectory);
 end;
 
+function TAllureLifecycle.CreateFixture: IAllureFixtureResult;
+var
+  res: TAllureFixtureResult;
+begin
+  res := TAllureFixtureResult.Create;
+  result := res;
+  res.SelfIncrement := false;
+end;
+
+function TAllureLifecycle.CreateStepResult: IAllureStepResult;
+var
+  res: TAllureStepResult;
+begin
+  res := TAllureStepResult.Create;
+  result := res;
+  res.SelfIncrement := false;
+end;
+
 function TAllureLifecycle.CreateTestResult: IAllureTestResult;
 var
   res: TAllureTestResult;
 begin
   res := TAllureTestResult.Create;
+  res.UUID := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
+  result := res;
+  res.SelfIncrement := false;
+end;
+
+function TAllureLifecycle.CreateTestResultContainer: IAllureTestResultContainer;
+var
+  res: TAllureTestResultContainer;
+begin
+  res := TAllureTestResultContainer.Create;
   res.UUID := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
   result := res;
   res.SelfIncrement := false;
@@ -408,37 +439,75 @@ end;
 
 function TAllureLifecycle.StartAfterFixture(const ParentUuid,
   Uuid: TAllureString; const Res: IAllureFixtureResult): IAllureLifecycle;
+var
+  container: TAllureTestResultContainer;
 begin
   result := self;
-
+  if Res=nil then exit;
+  container := fStorage.Get<TAllureTestResultContainer>(ParentUuid);
+  if container<>nil then begin
+    container.Afters.Add(res);
+  end;
+  StartFixture(Uuid, res);
 end;
 
 function TAllureLifecycle.StartBeforeFixture(const ParentUuid,
   Uuid: TAllureString; const Res: IAllureFixtureResult): IAllureLifecycle;
+var
+  container: TAllureTestResultContainer;
 begin
   result := self;
-
+  if Res=nil then exit;
+  container := fStorage.Get<TAllureTestResultContainer>(ParentUuid);
+  if container<>nil then begin
+    container.Befores.Add(res);
+  end;
+  StartFixture(Uuid, res);
 end;
 
 function TAllureLifecycle.StartFixture(const Uuid: TAllureString;
   const Res: IAllureFixtureResult): IAllureLifecycle;
 begin
   result := self;
-
+  if Res=nil then exit;
+  fStorage.AddObject(Uuid, res);
+  res.Stage := asRunning;
+  res.Start := TAllureTime.Now;
+  fThreadContext.Clear;
+  fThreadContext.Push(Uuid);
 end;
 
 function TAllureLifecycle.StartStep(const Uuid: TAllureString;
   const StepResult: IAllureStepResult): IAllureLifecycle;
+var
+  parentUuid: TAllureString;
 begin
   result := self;
-
+  parentUuid := fThreadContext.Peek;
+  if parentUuid='' then begin
+    //LOGGER.error("Could not start step: no test case running");
+    exit;
+  end;
+  StartStep(parentUuid, Uuid, StepResult);
 end;
 
 function TAllureLifecycle.StartStep(const ParentUuid, Uuid: TAllureString;
   const StepResult: IAllureStepResult): IAllureLifecycle;
+var
+  parentStep: TAllureExecutableItem;
 begin
   result := self;
+  if StepResult=nil then exit;
+  StepResult.Stage := asRunning;
+  StepResult.Start := TAllureTime.Now;
 
+  fThreadContext.Push(Uuid);
+
+  fStorage.AddObject(Uuid, StepResult);
+  parentStep := fStorage.Get<TAllureExecutableItem>(parentUuid);
+  if parentStep<>nil then begin
+    parentStep.Steps.Add(StepResult);
+  end;
 end;
 
 function TAllureLifecycle.StartTestCase(const ContainerUuid: TAllureString;
@@ -477,21 +546,43 @@ function TAllureLifecycle.StartTestContainer(
   const Container: IAllureTestResultContainer): IAllureLifecycle;
 begin
   result := self;
-
+  if Container=nil then
+    exit;
+  Container.Start := TAllureTime.Now;
+  fStorage.AddObject(Container.UUID, Container);
 end;
 
 function TAllureLifecycle.StartTestContainer(const ParentUuid: TAllureString;
   const Container: IAllureTestResultContainer): IAllureLifecycle;
+var
+  parent: TAllureTestResultContainer;
 begin
   result := self;
-
+  if Container=nil then exit;
+  parent := fStorage.Get<TAllureTestResultContainer>(ParentUuid);
+  if parent<>nil then begin
+    parent.Children.Add(Container.UUID);
+  end;
+  StartTestContainer(Container);
 end;
 
 function TAllureLifecycle.StopFixture(
   const Uuid: TAllureString): IAllureLifecycle;
+var
+  fixture: TAllureFixtureResult;
 begin
   result := self;
+  fixture := fStorage.Get<TAllureFixtureResult>(Uuid);
+  if fixture=nil then begin
+    //LOGGER.error("Could not stop test fixture: test fixture with uuid {} not found", uuid);
+    exit;
+  end;
 
+  fixture.Stage := asFinished;
+  fixture.Stop := TAllureTime.Now;
+
+  fStorage.RemoveObject(uuid);
+  fThreadContext.Clear;
 end;
 
 function TAllureLifecycle.StopFixture(
@@ -509,15 +600,33 @@ begin
 end;
 
 function TAllureLifecycle.StopStep(const Uuid: TAllureString): IAllureLifecycle;
+var
+  step: TAllureStepResult;
 begin
   result := self;
+  step := fStorage.Get<TAllureStepResult>(Uuid);
+  if step=nil then begin
+    //LOGGER.error("Could not stop step: step with uuid {} not found", uuid);
+    exit;
+  end;
+  step.Stage := asFinished;
+  step.Stop := TAllureTime.Now;
 
+  fStorage.RemoveObject(Uuid);
+  fThreadContext.Pop();
 end;
 
 function TAllureLifecycle.StopStep: IAllureLifecycle;
+var
+  uuid: TAllureString;
 begin
   result := self;
-
+  uuid := fThreadContext.Peek;
+  if uuid='' then begin
+    //LOGGER.error("Could not stop step: no step running");
+    exit;
+  end;
+  StopStep(uuid);
 end;
 
 function TAllureLifecycle.StopTestCase(
@@ -545,9 +654,16 @@ end;
 
 function TAllureLifecycle.StopTestContainer(
   const Uuid: TAllureString): IAllureLifecycle;
+var
+  container: TAllureTestResultContainer;
 begin
   result := self;
-
+  container := fStorage.Get<TAllureTestResultContainer>(Uuid);
+  if container=nil then begin
+    //LOGGER.error("Could not stop test container: container with uuid {} not found", uuid);
+    exit;
+  end;
+  container.Stop := TAllureTime.Now;
 end;
 
 function TAllureLifecycle.UpdateFixture(const Uuid: TAllureString;
@@ -580,23 +696,47 @@ end;
 
 function TAllureLifecycle.UpdateTestCase(
   const Update: IAllureTestResultAction): IAllureLifecycle;
+var
+  uuid: TAllureString;
 begin
   result := self;
-
+  if Update=nil then exit;
+  uuid := fThreadContext.Root;
+  if uuid='' then begin
+    //LOGGER.error("Could not update test case: no test case running");
+    exit;
+  end;
+  UpdateTestCase(uuid, Update);
 end;
 
 function TAllureLifecycle.UpdateTestCase(const Uuid: TAllureString;
   const Update: IAllureTestResultAction): IAllureLifecycle;
+var
+  testResult: TAllureTestResult;
 begin
   result := self;
-
+  if Update=nil then exit;
+  testResult := fStorage.Get<TAllureTestResult>(Uuid);
+  if testResult=nil then begin
+    //LOGGER.error("Could not update test case: test case with uuid {} not found", uuid);
+    exit;
+  end;
+  Update.Invoke(testResult);
 end;
 
 function TAllureLifecycle.UpdateTestContainer(const Uuid: TAllureString;
   const Update: IAllureTestResultContainerAction): IAllureLifecycle;
+var
+  container: TAllureTestResultContainer;
 begin
   result := self;
-
+  if Update=nil then exit;
+  container := fStorage.Get<TAllureTestResultContainer>(uuid);
+  if container=nil then begin
+    //LOGGER.error("Could not update test container: container with uuid {} not found", uuid);
+    exit;
+  end;
+  Update.Invoke(container);
 end;
 
 function TAllureLifecycle.WriteTestCase(
@@ -616,9 +756,17 @@ end;
 
 function TAllureLifecycle.WriteTestContainer(
   const Uuid: TAllureString): IAllureLifecycle;
+var
+  container: TAllureTestResultContainer;
 begin
   result := self;
-
+  container := fStorage.Get<TAllureTestResultContainer>(Uuid);
+  if container=nil then begin
+    //LOGGER.error("Could not write test container: container with uuid {} not found", uuid);
+    exit;
+  end;
+  Writer.WriteTestContainer(container);
+  fStorage.RemoveObject(Uuid);
 end;
 
 end.

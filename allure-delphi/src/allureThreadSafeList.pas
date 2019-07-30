@@ -19,11 +19,20 @@ type
     procedure Lock; inline;
     procedure Unlock; inline;
 
-    procedure Clear;
-    procedure ClearObjects;
+    procedure Clear; virtual;
 
-    procedure Add(const Item: T);
-    procedure Remove(const Item: T);
+    procedure Add(const Item: T); virtual;
+    procedure Remove(const Item: T); virtual;
+  end;
+
+  TAllureThreadSafeObjectList<T: TAllureInterfacedObject> = class(TAllureThreadSafeList<T>)
+  public
+    destructor Destroy; override;
+
+    procedure Clear; override;
+
+    procedure Add(const Item: T); override;
+    procedure Remove(const Item: T); override;
   end;
 
   TAllureThreadLocalStringList = class(TAllureInterfacedObject)
@@ -90,27 +99,6 @@ begin
   Lock;
   try
     inherited Clear;
-  finally
-    Unlock;
-  end;
-end;
-
-procedure TAllureThreadSafeList<T>.ClearObjects;
-type
-  arrayofT = array of T;
-var
-  i: Integer;
-  objs: arrayofT;
-  obj: TObject;
-begin
-  Lock;
-  try
-    objs := List;
-    for i := 0 to Count-1 do begin
-      obj := PObject(@objs[i])^;
-      FreeAndNilAllureObject(obj);
-    end;
-    Clear;
   finally
     Unlock;
   end;
@@ -370,6 +358,57 @@ end;
 procedure TAllureThreadLocalStringList.Unlock;
 begin
   TMonitor.Exit(fLock);
+end;
+
+{ TAllureThreadSafeObjectList<T> }
+
+procedure TAllureThreadSafeObjectList<T>.Add(const Item: T);
+begin
+  Lock;
+  try
+    if Item<>nil then begin
+      Item.SelfIncrement := true;
+      inherited Add(Item);
+    end;
+  finally
+    Unlock;
+  end;
+end;
+
+procedure TAllureThreadSafeObjectList<T>.Clear;
+var
+  i: Integer;
+  obj: TAllureInterfacedObject;
+begin
+  Lock;
+  try
+    for i := 0 to Count-1 do begin
+      obj := self.Items[i];
+      obj.Free;
+    end;
+    inherited Clear;
+  finally
+    Unlock;
+  end;
+end;
+
+destructor TAllureThreadSafeObjectList<T>.Destroy;
+begin
+  Clear;
+  inherited;
+end;
+
+procedure TAllureThreadSafeObjectList<T>.Remove(const Item: T);
+begin
+  Lock;
+  try
+    if Item<>nil then begin
+      inherited Remove(Item);
+      Item.SelfIncrement := false;
+    end;
+  finally
+    Unlock;
+  end;
 end;
 
 end.
