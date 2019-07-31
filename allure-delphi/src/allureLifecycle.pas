@@ -5,7 +5,8 @@ interface
 uses
   System.SysUtils, Winapi.Windows, allureDelphiInterface, allureCommon,
   allureConfig, System.IOUtils, allureModel, allureThreadSafelist,
-  allureDelphiHelper, allureFileSystemResultsWriter;
+  allureDelphiHelper, allureFileSystemResultsWriter, Winapi.ActiveX,
+  System.Classes, Vcl.AxCtrls;
 
 type
 
@@ -19,6 +20,7 @@ type
     fWriter: IAllureResultsWriter;
     function GetWriter: IAllureResultsWriter;
     function CreateDefaultWriter: IAllureResultsWriter;
+    function PrepareAttachment(const Name, AType, FileExtension: TAllureString): TAllureString;
 
     property Writer: IAllureResultsWriter read GetWriter;
   public
@@ -217,6 +219,7 @@ type
     function StopStep(const Uuid: TAllureString): IAllureLifecycle; overload; safecall;
 
     // Attachment
+    function AddAttachment(const Name, AType, FileExtension: TAllureString; const Stream: IStream): IAllureLifecycle; overload; safecall;
     function AddAttachment(const Name, AType, Path: TAllureString): IAllureLifecycle; overload; safecall;
     function AddAttachment(const Name, AType: TAllureString; Content: Pointer; Size: UInt64; const FileExtension: TAllureString = ''): IAllureLifecycle; overload; safecall;
     function AddAttachment(const Path: TAllureString; const Name: TAllureString = ''): IAllureLifecycle; overload; safecall;
@@ -248,24 +251,84 @@ end;
 
 function TAllureLifecycle.AddAttachment(const Name, AType,
   Path: TAllureString): IAllureLifecycle;
+var
+  source: TAllureString;
+  s: TFileStream;
 begin
   result := self;
-
+  if not FileExists(Path) then exit;
+  source := PrepareAttachment(Name, AType, ExtractFileExt(Path));
+  if source<>'' then begin
+    try
+      s := TFileStream.Create(Path, fmShareDenyNone, fmShareCompat);
+      try
+        Writer.WriteAttachment(source, s);
+      finally
+        s.Free;
+      end;
+    except
+    end;
+  end;
 end;
 
 function TAllureLifecycle.AddAttachment(const Name, AType: TAllureString;
   Content: Pointer; Size: UInt64;
   const FileExtension: TAllureString): IAllureLifecycle;
+var
+  source: TAllureString;
+  s: TExtMemoryStream;
 begin
   result := self;
-
+  if (Content=nil) or (Size=0) then exit;
+  source := PrepareAttachment(Name, AType, FileExtension);
+  if source<>'' then begin
+    try
+      s := TExtMemoryStream.Create(Content, Size);
+      try
+        Writer.WriteAttachment(source, s);
+      finally
+        s.Free;
+      end;
+    except
+    end;
+  end;
 end;
 
 function TAllureLifecycle.AddAttachment(const Path,
   Name: TAllureString): IAllureLifecycle;
+var
+  AName, AType: TAllureString;
 begin
   result := self;
+  if not FileExists(Path) then exit;
+  if Name='' then
+    AName := ExtractFileName(Path)
+  else
+    AName := Name;
+  AType := TMimeTypesMap.GetMimeType(Path);
+  result := AddAttachment(AName, AType, Path);
+end;
 
+function TAllureLifecycle.AddAttachment(const Name, AType,
+  FileExtension: TAllureString; const Stream: IStream): IAllureLifecycle;
+var
+  source: TAllureString;
+  s: TOleStream;
+begin
+  result := self;
+  if Stream=nil then exit;
+  source := PrepareAttachment(Name, AType, FileExtension);
+  if source<>'' then begin
+    try
+      s := TOleStream.Create(Stream);
+      try
+        Writer.WriteAttachment(source, s);
+      finally
+        s.Free;
+      end;
+    except
+    end;
+  end;
 end;
 
 procedure TAllureLifecycle.AssignConfigFromFile(
@@ -311,7 +374,7 @@ end;
 
 function TAllureLifecycle.CreateDefaultWriter: IAllureResultsWriter;
 begin
-  result := TAllureFileSystemResultsWriter.Create(ResultsDirectory);
+  result := TAllureFileSystemResultsWriter.Create(AllureConfiguration);
 end;
 
 function TAllureLifecycle.CreateFixture: IAllureFixtureResult;
@@ -415,6 +478,36 @@ begin
   result := fWriter;
 end;
 
+function TAllureLifecycle.PrepareAttachment(const Name, AType,
+  FileExtension: TAllureString): TAllureString;
+var
+  ext, uuid: TAllureString;
+  a: TAllureAttachment;
+  eItem: TAllureExecutableItem;
+begin
+  if FileExtension<>'' then begin
+    if FileExtension[1]<>'.' then
+      ext := '.' + FileExtension
+    else
+      ext := FileExtension;
+  end else
+    ext := FileExtension;
+  result := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36) + ATTACHMENT_FILE_SUFFIX + ext;
+  uuid := fThreadContext.Peek;
+  if uuid='' then begin
+    //LOGGER.error("Could not add attachment: no test is running");
+    exit;
+  end;
+  eItem := fStorage.Get<TAllureExecutableItem>(uuid);
+  if eItem<>nil then begin
+    a := TAllureAttachment.Create;
+    a.Name := Name;
+    a.AttachmentType := AType;
+    a.Source := result;
+    eItem.Attachments.Add(a);
+  end;
+end;
+
 function TAllureLifecycle.ScheduleTestCase(
   const TestResult: IAllureTestResult): IAllureLifecycle;
 begin
@@ -426,9 +519,16 @@ end;
 
 function TAllureLifecycle.ScheduleTestCase(const ContainerUuid: TAllureString;
   const TestResult: IAllureTestResult): IAllureLifecycle;
+var
+  container: TAllureTestResultContainer;
 begin
   result := self;
-
+  if TestResult=nil then exit;
+  container := fStorage.Get<TAllureTestResultContainer>(ContainerUuid);
+  if container<>nil then begin
+    container.Children.Add(TestResult.UUID);
+  end;
+  ScheduleTestCase(TestResult);
 end;
 
 procedure TAllureLifecycle.SetJsonConfiguration(const Value: TAllureString);
@@ -512,9 +612,16 @@ end;
 
 function TAllureLifecycle.StartTestCase(const ContainerUuid: TAllureString;
   const TestResult: IAllureTestResult): IAllureLifecycle;
+var
+  container: TAllureTestResultContainer;
 begin
   result := self;
-
+  if TestResult=nil then exit;
+  container := fStorage.Get<TAllureTestResultContainer>(ContainerUuid);
+  if container<>nil then begin
+    container.Children.Add(TestResult.UUID);
+  end;
+  StartTestCase(TestResult);
 end;
 
 function TAllureLifecycle.StartTestCase(
@@ -587,16 +694,27 @@ end;
 
 function TAllureLifecycle.StopFixture(
   const BeforeStop: IAllureFixtureResultAction): IAllureLifecycle;
+var
+  uuid: TAllureString;
 begin
   result := self;
-
+  if BeforeStop=nil then exit;
+  UpdateFixture(BeforeStop);
+  uuid := fThreadContext.Root;
+  if uuid='' then begin
+    //LOGGER.error("Could not stop test fixture: no test fixture running");
+    exit;
+  end;
+  StopFixture(uuid);
 end;
 
 function TAllureLifecycle.StopStep(
   beforeStop: IAllureStepResultAction): IAllureLifecycle;
 begin
   result := self;
-
+  if beforeStop<>nil then
+    UpdateStep(beforeStop);
+  StopStep;
 end;
 
 function TAllureLifecycle.StopStep(const Uuid: TAllureString): IAllureLifecycle;
@@ -647,9 +765,15 @@ end;
 
 function TAllureLifecycle.StopTestCase(
   const BeforeStop: IAllureTestResultAction): IAllureLifecycle;
+var
+  uuid: TAllureString;
 begin
   result := self;
-
+  if BeforeStop<>nil then
+    UpdateTestCase(BeforeStop);
+  uuid := fThreadContext.Root;
+  if uuid<>'' then
+    StopTestCase(uuid);
 end;
 
 function TAllureLifecycle.StopTestContainer(
@@ -668,30 +792,58 @@ end;
 
 function TAllureLifecycle.UpdateFixture(const Uuid: TAllureString;
   const Update: IAllureFixtureResultAction): IAllureLifecycle;
+var
+  fixture: TAllureFixtureResult;
 begin
   result := self;
-
+  if Update=nil then exit;
+  fixture := fStorage.Get<TAllureFixtureResult>(Uuid);
+  if fixture=nil then begin
+    //LOGGER.error("Could not update test fixture: test fixture with uuid {} not found", uuid);
+    exit;
+  end;
+  Update.Invoke(fixture);
 end;
 
 function TAllureLifecycle.UpdateFixture(
   const Update: IAllureFixtureResultAction): IAllureLifecycle;
+var
+  uuid: TAllureString;
 begin
   result := self;
-
+  if Update=nil then exit;
+  uuid := fThreadContext.Root;
+  if uuid='' then begin
+    //LOGGER.error("Could not update test fixture: no test fixture running");
+    exit;
+  end;
+  UpdateFixture(uuid, Update);
 end;
 
 function TAllureLifecycle.UpdateStep(const Uuid: TAllureString;
   Update: IAllureStepResultAction): IAllureLifecycle;
+var
+  step: TAllureStepResult;
 begin
   result := self;
-
+  if Update=nil then exit;
+  step := fStorage.Get<TAllureStepResult>(Uuid);
+  if step=nil then begin
+    //LOGGER.error("Could not update step: step with uuid {} not found", uuid);
+    exit;
+  end;
+  Update.Invoke(step);
 end;
 
 function TAllureLifecycle.UpdateStep(
   Update: IAllureStepResultAction): IAllureLifecycle;
+var
+  uuid: TAllureString;
 begin
   result := self;
-
+  if Update=nil then exit;
+  uuid := fThreadContext.Peek;
+  UpdateStep(uuid, Update);
 end;
 
 function TAllureLifecycle.UpdateTestCase(

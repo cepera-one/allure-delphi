@@ -2,6 +2,9 @@ unit allureDelphiInterface;
 
 interface
 
+uses
+  Winapi.ActiveX;
+
 type
 
   IAllureStringSet = interface;
@@ -264,6 +267,8 @@ type
 
     property Attachment[Index: Integer]: IAllureAttachment read GetAttachment;
     property AttachmentCount: Integer read GetAttachmentCount;
+
+    procedure Add(const Attachment: IAllureAttachment); safecall;
   end;
 
   IAllureTestResult = interface(IAllureExecutableItem)
@@ -556,7 +561,15 @@ type
      *)
     function StopStep(const Uuid: TAllureString): IAllureLifecycle; overload; safecall;
 
-    // Attachment
+    (*
+     * Adds attachment to current running test or step.
+     *
+     * @param name          the name of attachment
+     * @param type          the content type of attachment
+     * @param fileExtension the attachment file extension
+     * @param stream        attachment content
+     *)
+    function AddAttachment(const Name, AType, FileExtension: TAllureString; const Stream: IStream): IAllureLifecycle; overload; safecall;
     function AddAttachment(const Name, AType, Path: TAllureString): IAllureLifecycle; overload; safecall;
     function AddAttachment(const Name, AType: TAllureString; Content: Pointer; Size: UInt64; const FileExtension: TAllureString = ''): IAllureLifecycle; overload; safecall;
     function AddAttachment(const Path: TAllureString; const Name: TAllureString = ''): IAllureLifecycle; overload; safecall;

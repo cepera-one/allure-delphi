@@ -5,19 +5,19 @@ interface
 uses
   System.SysUtils, Winapi.Windows, allureDelphiInterface, allureCommon,
   System.Classes, allureDelphiHelper, allureModel, System.JSON.Builders,
-  System.JSON.Types, System.JSON.Writers;
+  System.JSON.Types, System.JSON.Writers, System.IOUtils;
 
 type
 
   TAllureFileSystemResultsWriter = class(TAllureInterfacedObject, IAllureResultsWriter)
   private
     fOutputDirectory: string;
-
+    fConfig: IAllureConfiguration;
     procedure WriteExecutableItem(EItem: TAllureExecutableItem; jso: TJSONCollectionBuilder.TPairs);
     procedure WriteLinks(Links: TAllureLinkList; jso: TJSONCollectionBuilder.TPairs);
     procedure WriteLabels(Labels: TAllureLabels; jso: TJSONCollectionBuilder.TPairs);
   public
-    constructor Create(const OutputDirectory: string; ASelfIncrement: Boolean = false);
+    constructor Create(const Config: IAllureConfiguration; ASelfIncrement: Boolean = false);
     destructor Destroy; override;
 
     (*
@@ -55,10 +55,11 @@ implementation
 { TAllureFileSystemResultsWriter }
 
 constructor TAllureFileSystemResultsWriter.Create(
-  const OutputDirectory: string; ASelfIncrement: Boolean = false);
+  const Config: IAllureConfiguration; ASelfIncrement: Boolean = false);
 begin
   inherited Create;
-  fOutputDirectory := OutputDirectory;
+  fConfig := Config;
+  fOutputDirectory := Config.Directory;
   SelfIncrement := ASelfIncrement;
 end;
 
@@ -69,8 +70,22 @@ end;
 
 procedure TAllureFileSystemResultsWriter.WriteAttachment(const Source: String;
   Attachment: TStream);
+var
+  fn: string;
+  fs: TFileStream;
 begin
-
+  if (Source='') or (Attachment=nil) then exit;
+  try
+    ForceDirectories(fOutputDirectory);
+    fn := fOutputDirectory + '\' + Source;
+    fs := TFileStream.Create(fn, fmCreate);
+    try
+      fs.CopyFrom(Attachment, Attachment.Size);
+    finally
+      fs.Free;
+    end;
+  except
+  end;
 end;
 
 procedure TAllureFileSystemResultsWriter.WriteExecutableItem(
@@ -208,6 +223,7 @@ var
   tob: TJSONCollectionBuilder.TPairs;
 begin
   if TestResult=nil then exit;
+  TAllureLinkHelper.UpdateLinks(TestResult.Links, fConfig.Links);
   ForceDirectories(fOutputDirectory);
   fn := fOutputDirectory + '\' + TestResult.UUID + TEST_RESULT_FILE_SUFFIX;
   StreamWriter := TStreamWriter.Create(fn);
@@ -255,6 +271,7 @@ var
   i: Integer;
 begin
   if TestResultContainer=nil then exit;
+  TAllureLinkHelper.UpdateLinks(TestResultContainer.Links, fConfig.Links);
   ForceDirectories(fOutputDirectory);
   fn := fOutputDirectory + '\' + TestResultContainer.UUID + TEST_RESULT_CONTAINER_FILE_SUFFIX;
   StreamWriter := TStreamWriter.Create(fn);

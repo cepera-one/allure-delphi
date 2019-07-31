@@ -157,6 +157,8 @@ type
 
     property Attachment[Index: Integer]: IAllureAttachment read GetAttachment;
     property AttachmentCount: Integer read GetAttachmentCount;
+
+    procedure Add(const Attachment: IAllureAttachment); safecall;
   end;
 
   TAllureExecutableItem = class(TAllureInterfacedObject, IAllureExecutableItem)
@@ -452,6 +454,10 @@ type
     property Links: IAllureLinkList read GetLinks;
     property Start: TAllureTime read GetStart write SetStart;
     property Stop: TAllureTime read GetStop write SetStop;
+  end;
+
+  TAllureLinkHelper = record
+    class procedure UpdateLinks(const Links: IAllureLinkList; const Patterns: IAllureStringSet); static;
   end;
 
 implementation
@@ -832,6 +838,12 @@ begin
 end;
 
 { TAllureAttachments }
+
+procedure TAllureAttachments.Add(const Attachment: IAllureAttachment);
+begin
+  if Attachment=nil then exit;
+  fList.Add(TAllureInterfacedObject.ToClass<TAllureAttachment>(Attachment));
+end;
 
 constructor TAllureAttachments.Create;
 begin
@@ -1404,6 +1416,14 @@ procedure TAllureStringSet.SetValue(Index: Integer;
   const AValue: TAllureString);
 begin
   fList[Index] := AValue;
+end;
+
+{ TAllureLinkHelper }
+
+class procedure TAllureLinkHelper.UpdateLinks(const Links: IAllureLinkList;
+  const Patterns: IAllureStringSet);
+begin
+  Assert(false);
 end;
 
 end.

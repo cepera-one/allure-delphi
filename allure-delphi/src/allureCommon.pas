@@ -3,7 +3,7 @@ unit allureCommon;
 interface
 
 uses
-  System.SysUtils, Winapi.Windows;
+  System.SysUtils, Winapi.Windows, System.Classes;
 
 const
   ALLURE_CONFIG_ENV_VARIABLE: string = 'ALLURE_CONFIG';
@@ -47,6 +47,11 @@ type
     function Release: Integer;
 
     class function ToClass<T: TInterfacedObject>(const intf: IUnknown): T; static;
+  end;
+
+  TExtMemoryStream = class(TCustomMemoryStream)
+  public
+    constructor Create(Ptr: Pointer; const Size: UInt64);
   end;
 
   procedure FreeAndNilAllureObject(var obj: TObject);
@@ -134,6 +139,14 @@ end;
 function TAllureInterfacedObject._Release: Integer;
 begin
   Result := inherited _Release;
+end;
+
+{ TExtMemoryStream }
+
+constructor TExtMemoryStream.Create(Ptr: Pointer; const Size: UInt64);
+begin
+  inherited Create;
+  SetPointer(Ptr, Size);
 end;
 
 end.

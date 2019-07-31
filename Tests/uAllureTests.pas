@@ -28,6 +28,9 @@ type
     procedure ShouldReadAllureConfig;
 
     [Test]
+    procedure ShouldCleanupResultDirectory;
+
+    [Test]
     procedure ShouldCreateTest;
 
     [Test]
@@ -47,6 +50,9 @@ type
 
     [Test]
     procedure ShouldCreateTestFixture;
+
+    [Test]
+    procedure ShouldAddAttachments;
 
     // Test with TestCase Attribute to supply parameters.
 //    [Test]
@@ -90,6 +96,73 @@ end;
 
 procedure TAllureDelphiTests.TearDown;
 begin
+end;
+
+procedure TAllureDelphiTests.ShouldAddAttachments;
+const
+  attachemnt1Content: AnsiString = 'This is a some text to check it attached to the test';
+  attachemnt2File: string = '\..\..\..\Tests\TestData\allureConfig.json';
+  attachemnt3File: string = '\..\..\..\Tests\TestData\WeldingBox.png';
+var
+  test: IAllureTestResult;
+  fn, txt: string;
+  jv, v: TJSONValue;
+begin
+  Assert.IsNotNull(Allure.Lifecycle);
+  test := Allure.Lifecycle.CreateTestResult;
+  Assert.IsNotNull(test);
+  test.Name := 'ShouldAddAttachments';
+  test.FullName := 'TAllureDelphiTests.ShouldAddAttachments';
+  test.HistoryID := THashMD5.GetHashString(test.Name);
+  test.Status := asPassed;
+
+  Allure.Lifecycle.ScheduleTestCase(test);
+  Allure.Lifecycle.StartTestCase(test.UUID);
+
+  Allure.Lifecycle.AddAttachment('attachment1',
+    TMimeTypesMap.PlainText, @attachemnt1Content[1], SizeOf(attachemnt1Content[1])*Length(attachemnt1Content));
+  fn := ExtractFileDir(GetModuleName(HInstance)) + attachemnt2File;
+  Allure.Lifecycle.AddAttachment(fn);
+  fn := ExtractFileDir(GetModuleName(HInstance)) + attachemnt3File;
+  Allure.Lifecycle.AddAttachment(fn);
+
+  Allure.Lifecycle.StopTestCase(test.UUID);
+  Allure.Lifecycle.WriteTestCase(test.UUID);
+
+  fn := Allure.Lifecycle.ResultsDirectory + '\' + test.UUID + '-result.json';
+  if FileExists(fn) then begin
+    jv := TJSONObject.ParseJSONValue(TFile.ReadAllText(fn), False, True);
+    try
+      Assert.IsNotNull(jv);
+      v := jv.FindValue('uuid');
+      Assert.IsNotNull(v);
+      Assert.AreEqual(test.UUID, v.Value, true);
+      v := jv.FindValue('name');
+      Assert.IsNotNull(v);
+      Assert.AreEqual(test.Name, v.Value, true);
+      v := jv.FindValue('attachments[0].source');
+      Assert.IsNotNull(v);
+      fn := Allure.Lifecycle.ResultsDirectory + '\' + v.Value;
+      if not FileExists(fn) then
+        Assert.Fail('Attachment 1 file not created');
+      txt := TFile.ReadAllText(fn);
+      Assert.AreEqual(UnicodeString(attachemnt1Content), txt, true);
+      v := jv.FindValue('attachments[1].source');
+      Assert.IsNotNull(v);
+      fn := Allure.Lifecycle.ResultsDirectory + '\' + v.Value;
+      if not FileExists(fn) then
+        Assert.Fail('Attachment 2 file not created');
+      v := jv.FindValue('attachments[2].source');
+      Assert.IsNotNull(v);
+      fn := Allure.Lifecycle.ResultsDirectory + '\' + v.Value;
+      if not FileExists(fn) then
+        Assert.Fail('Attachment 3 file not created');
+    finally
+      jv.Free;
+    end;
+  end else
+    Assert.Fail('Test result not created');
+  test := nil;
 end;
 
 procedure TAllureDelphiTests.ShouldAddStepsToTests;
@@ -139,6 +212,14 @@ begin
   end else
     Assert.Fail('Test result not created');
   res := nil;
+end;
+
+procedure TAllureDelphiTests.ShouldCleanupResultDirectory;
+begin
+  Assert.IsNotNull(Allure.Lifecycle);
+  Allure.Lifecycle.CleanupResultDirectory;
+  if not TDirectory.IsEmpty(Allure.Lifecycle.ResultsDirectory) then
+    Assert.Fail('The results directory is not empty');
 end;
 
 procedure TAllureDelphiTests.ShouldCreateChildTestContainer;
@@ -191,36 +272,36 @@ end;
 
 procedure TAllureDelphiTests.ShouldCreateTest;
 var
-  res: IAllureTestResult;
+  test: IAllureTestResult;
   fn: string;
   jv, v: TJSONValue;
 begin
   Assert.IsNotNull(Allure.Lifecycle);
-  res := Allure.Lifecycle.CreateTestResult;
-  Assert.IsNotNull(res);
-  res.Name := 'TAllureDelphiTests.ShouldCreateTest';
-  res.HistoryID := THashMD5.GetHashString(res.Name);
-  res.Status := asPassed;
-  res.Links.AddNew.SetIssue('SC-4558');
-  res.Labels.AddNew.SetPackage('AllureDelphiTest.exe');
-  res.Labels.AddNew.SetSeverity(aslCritical);
+  test := Allure.Lifecycle.CreateTestResult;
+  Assert.IsNotNull(test);
+  test.Name := 'TAllureDelphiTests.ShouldCreateTest';
+  test.HistoryID := THashMD5.GetHashString(test.Name);
+  test.Status := asPassed;
+  test.Links.AddNew.SetIssue('SC-4558');
+  test.Labels.AddNew.SetPackage('AllureDelphiTest.exe');
+  test.Labels.AddNew.SetSeverity(aslCritical);
 
-  Allure.Lifecycle.ScheduleTestCase(res);
-  Allure.Lifecycle.StartTestCase(res.UUID);
-  Allure.Lifecycle.StopTestCase(res.UUID);
-  Allure.Lifecycle.WriteTestCase(res.UUID);
+  Allure.Lifecycle.ScheduleTestCase(test);
+  Allure.Lifecycle.StartTestCase(test.UUID);
+  Allure.Lifecycle.StopTestCase(test.UUID);
+  Allure.Lifecycle.WriteTestCase(test.UUID);
 
-  fn := Allure.Lifecycle.ResultsDirectory + '\' + res.UUID + '-result.json';
+  fn := Allure.Lifecycle.ResultsDirectory + '\' + test.UUID + '-result.json';
   if FileExists(fn) then begin
     jv := TJSONObject.ParseJSONValue(TFile.ReadAllText(fn), False, True);
     try
       Assert.IsNotNull(jv);
       v := jv.FindValue('uuid');
       Assert.IsNotNull(v);
-      Assert.AreEqual(res.UUID, v.Value, true);
+      Assert.AreEqual(test.UUID, v.Value, true);
       v := jv.FindValue('name');
       Assert.IsNotNull(v);
-      Assert.AreEqual(res.Name, v.Value, true);
+      Assert.AreEqual(test.Name, v.Value, true);
       v := jv.FindValue('start');
       Assert.IsNotNull(v);
       v := jv.FindValue('stop');
@@ -230,7 +311,7 @@ begin
     end;
   end else
     Assert.Fail('Test result not created');
-  res := nil;
+  test := nil;
 end;
 
 procedure TAllureDelphiTests.ShouldCreateTestContainer;
