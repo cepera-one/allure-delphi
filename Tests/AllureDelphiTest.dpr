@@ -9,6 +9,7 @@ uses
   {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX,
   {$ENDIF }
+  DUnitX.FixtureProviderPlugin in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.FixtureProviderPlugin.pas',
   DUnitX.TestFramework in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.TestFramework.pas',
   DUnitX.TestRunner in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.TestRunner.pas',
   DUnitX.Test in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Test.pas',
@@ -27,7 +28,8 @@ uses
   uAllureTests in 'uAllureTests.pas',
   allureDUnitXLogger in '..\allure-DUnitX\allureDUnitXLogger.pas',
   allureDelphiInterface in '..\allure-delphi\src\allureDelphiInterface.pas',
-  allureDelphiHelper in '..\allure-delphi\src\allureDelphiHelper.pas';
+  allureDelphiHelper in '..\allure-delphi\src\allureDelphiHelper.pas',
+  uAllureDUnitXLoggerTest in 'uAllureDUnitXLoggerTest.pas';
 
 var
   runner : ITestRunner;
