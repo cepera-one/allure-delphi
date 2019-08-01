@@ -5,7 +5,7 @@ interface
 uses
   System.SysUtils, Winapi.Windows, allureDelphiInterface, allureCommon,
   allureThreadSafeList, System.Generics.Defaults, System.Classes,
-  allureDelphiHelper;
+  allureDelphiHelper, System.StrUtils;
 
 type
   TAllureStepResultList = class;
@@ -1422,8 +1422,37 @@ end;
 
 class procedure TAllureLinkHelper.UpdateLinks(const Links: IAllureLinkList;
   const Patterns: IAllureStringSet);
+const
+  IssueTag: TAllureString = '{issue}';
+  TMSTag: TAllureString = '{tms}';
+
+  function IndexOfPattern(const Tag: TAllureString; out tg: TAllureString): Integer;
+  var
+    j: Integer;
+    pt: TAllureString;
+  begin
+    tg := '';
+    if Tag='' then exit;
+    tg := '{' + AnsiLowerCase(Tag) + '}';
+    for j := 0 to Patterns.Count-1 do begin
+      pt := AnsiLowerCase(Patterns.Value[j]);
+      if Pos(tg, pt)>0 then
+        exit(j);
+    end;
+    result := -1;
+  end;
+
+var
+  i, j: Integer;
+  tg: TAllureString;
 begin
-  Assert(false);
+  if (Links=nil) or (Patterns=nil) then exit;
+  for i := 0 to Links.LinkCount-1 do begin
+    if Links.Link[i].Url<>'' then continue;
+    j := IndexOfPattern(Links.Link[i].LinkType, tg);
+    if j>=0 then
+      Links.Link[i].Url := ReplaceText(Patterns.Value[j], tg, Links.Link[i].Name)
+  end;
 end;
 
 end.

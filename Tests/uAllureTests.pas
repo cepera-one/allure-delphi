@@ -16,6 +16,12 @@ type
     constructor Create;
     destructor Destroy; override;
 
+    [SetupFixture]
+    procedure SetupFixture;
+
+    [TearDownFixture]
+    procedure TearDownFixture;
+
     [Setup]
     procedure Setup;
     [TearDown]
@@ -66,12 +72,11 @@ implementation
 constructor TAllureDelphiTests.Create;
 begin
   inherited;
-  Allure.Initialize;
+  SetupFixture;
 end;
 
 destructor TAllureDelphiTests.Destroy;
 begin
-  Allure.Finalize;
   inherited;
 end;
 
@@ -94,8 +99,18 @@ procedure TAllureDelphiTests.Setup;
 begin
 end;
 
+procedure TAllureDelphiTests.SetupFixture;
+begin
+  Allure.Initialize;
+end;
+
 procedure TAllureDelphiTests.TearDown;
 begin
+end;
+
+procedure TAllureDelphiTests.TearDownFixture;
+begin
+  Allure.Finalize;
 end;
 
 procedure TAllureDelphiTests.ShouldAddAttachments;
@@ -356,6 +371,7 @@ procedure TAllureDelphiTests.ShouldCreateTestFixture;
 var
   container: IAllureTestResultContainer;
   fixture: IAllureFixtureResult;
+  test: IAllureTestResult;
   fn, fixtureUuid, step0, step1, step2: string;
   jv, v: TJSONValue;
 begin
@@ -375,6 +391,16 @@ begin
   step1 := MakeRandomStep(fixtureUuid);
 
   Allure.Lifecycle.StopFixture(fixtureUuid);
+
+
+  test := Allure.Lifecycle.CreateTestResult;
+  test.Name := 'ShouldCreateTestFixture';
+  Allure.Lifecycle.ScheduleTestCase(container.UUID, test);
+  Allure.Lifecycle.StartTestCase(test.UUID);
+  MakeRandomStep(test.UUID);
+  MakeRandomStep(test.UUID);
+  Allure.Lifecycle.StopTestCase(test.UUID);
+  Allure.Lifecycle.WriteTestCase(test.UUID);
 
   fixture := Allure.Lifecycle.CreateFixture;
   fixtureUuid := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
