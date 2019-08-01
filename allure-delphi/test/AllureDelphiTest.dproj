@@ -47,7 +47,7 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
         <DCC_DcuOutput>.\$(Platform)\$(Config)</DCC_DcuOutput>
-        <DCC_ExeOutput>..\bin\$(Platform)\$(Config)</DCC_ExeOutput>
+        <DCC_ExeOutput>..\..\bin\$(Platform)\$(Config)</DCC_ExeOutput>
         <DCC_E>false</DCC_E>
         <DCC_N>false</DCC_N>
         <DCC_S>false</DCC_S>
@@ -101,25 +101,9 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.FixtureProviderPlugin.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.TestFramework.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.TestRunner.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Test.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.TestFixture.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Assert.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Assert.Ex.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Attributes.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Generics.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Extensibility.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Filters.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.ComparableFormat.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Exceptions.pas"/>
-        <DCCReference Include="D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Types.pas"/>
+        <DCCReference Include="..\main\src\allureDelphiInterface.pas"/>
+        <DCCReference Include="..\main\src\allureDelphiHelper.pas"/>
         <DCCReference Include="uAllureTests.pas"/>
-        <DCCReference Include="..\allure-DUnitX\allureDUnitXLogger.pas"/>
-        <DCCReference Include="..\allure-delphi\src\allureDelphiInterface.pas"/>
-        <DCCReference Include="..\allure-delphi\src\allureDelphiHelper.pas"/>
-        <DCCReference Include="uAllureDUnitXLoggerTest.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

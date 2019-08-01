@@ -116,8 +116,8 @@ end;
 procedure TAllureDelphiTests.ShouldAddAttachments;
 const
   attachemnt1Content: AnsiString = 'This is a some text to check it attached to the test';
-  attachemnt2File: string = '\..\..\..\Tests\TestData\allureConfig.json';
-  attachemnt3File: string = '\..\..\..\Tests\TestData\WeldingBox.png';
+  attachemnt2File: string = '\..\..\..\TestData\allureConfig.json';
+  attachemnt3File: string = '\..\..\..\TestData\WeldingBox.png';
 var
   test: IAllureTestResult;
   fn, txt: string;
@@ -460,7 +460,7 @@ begin
   lf := nil;
   try
     lf := Allure.Lifecycle;
-    fn := ExtractFilePath(GetModuleName(HInstance)) + '..\..\..\Tests\TestData\allureConfig.json';
+    fn := ExtractFilePath(GetModuleName(HInstance)) + '..\..\..\TestData\allureConfig.json';
     if not FileExists(fn) then
       Assert.Fail('Missing config file: ' + fn);
     Assert.IsNotNull(lf);

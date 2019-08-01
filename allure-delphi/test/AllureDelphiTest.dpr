@@ -9,27 +9,12 @@ uses
   {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX,
   {$ENDIF }
-  DUnitX.FixtureProviderPlugin in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.FixtureProviderPlugin.pas',
-  DUnitX.TestFramework in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.TestFramework.pas',
-  DUnitX.TestRunner in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.TestRunner.pas',
-  DUnitX.Test in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Test.pas',
-  DUnitX.TestFixture in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.TestFixture.pas',
-  DUnitX.Assert in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Assert.pas',
-  DUnitX.Assert.Ex in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Assert.Ex.pas',
-  DUnitX.Attributes in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Attributes.pas',
-  DUnitX.Generics in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Generics.pas',
-  DUnitX.Extensibility in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Extensibility.pas',
-  DUnitX.Filters in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Filters.pas',
-  DUnitX.ComparableFormat in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.ComparableFormat.pas',
-  DUnitX.Exceptions in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Exceptions.pas',
-  DUnitX.Types in 'D:\Programs\Embarcadero\Studio\20.0\source\DunitX\DUnitX.Types.pas',
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
-  uAllureTests in 'uAllureTests.pas',
-  allureDUnitXLogger in '..\allure-DUnitX\allureDUnitXLogger.pas',
-  allureDelphiInterface in '..\allure-delphi\src\allureDelphiInterface.pas',
-  allureDelphiHelper in '..\allure-delphi\src\allureDelphiHelper.pas',
-  uAllureDUnitXLoggerTest in 'uAllureDUnitXLoggerTest.pas';
+  DUnitX.TestFramework,
+  allureDelphiInterface in '..\main\src\allureDelphiInterface.pas',
+  allureDelphiHelper in '..\main\src\allureDelphiHelper.pas',
+  uAllureTests in 'uAllureTests.pas';
 
 var
   runner : ITestRunner;
