@@ -36,8 +36,9 @@ type
   end;
 
   TAllureThreadLocalStringList = class(TAllureInterfacedObject)
-  private type
+  public type
     TListOfStrings = TList<string>;
+  private type
     TThreadRec = record
       ThreadID: TThreadID;
       List: TListOfStrings;
@@ -45,13 +46,14 @@ type
   var
     fThreads: TArray<TThreadRec>;
     fLock: TObject;
-    procedure Lock; inline;
-    procedure Unlock; inline;
-    function List: TListOfStrings;
     procedure ClearAllThreads;
   public
     constructor Create;
     destructor Destroy; override;
+
+    procedure Lock; inline;
+    procedure Unlock; inline;
+    function List: TListOfStrings;
 
     procedure Push(const Value: string);
     function Pop: string;
@@ -65,13 +67,14 @@ type
   TAllureThreadSafeDictionary = class(TDictionary<string,TAllureInterfacedObject>)
   private
     fLock: TObject;
-    procedure Lock; inline;
-    procedure Unlock; inline;
   public
     constructor Create;
     destructor Destroy; override;
 
     procedure ClearObjects;
+
+    procedure Lock; inline;
+    procedure Unlock; inline;
 
     procedure AddObject(const ID: string; Obj: TAllureInterfacedObject); overload;
     procedure AddObject(const ID: string; Obj: IUnknown); overload;

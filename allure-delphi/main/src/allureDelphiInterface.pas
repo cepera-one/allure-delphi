@@ -35,6 +35,7 @@ type
 
   TAllureString = WideString;
   TAllureBoolean = WordBool;
+  TAllureTag = Int64;
 
   TAllureStatus = (
     asNone,
@@ -75,7 +76,7 @@ type
     procedure Clear; safecall;
 
     property Count: Integer read GetCount;
-    property Value[Index: Integer]: TAllureString read GetValue write SetValue;
+    property Value[Index: Integer]: TAllureString read GetValue write SetValue; default;
   end;
 
   IAllureConfiguration = interface
@@ -122,6 +123,8 @@ type
     procedure SetStart(const Value: TAllureTime); safecall;
     function GetStop: TAllureTime; safecall;
     procedure SetStop(const Value: TAllureTime); safecall;
+    function GetTag: TAllureTag; safecall;
+    procedure SetTag(const Value: TAllureTag); safecall;
 
     property UUID: TAllureString read GetUUID write SetUUID;
     property Name: TAllureString read GetName write SetName;
@@ -133,6 +136,7 @@ type
     property Links: IAllureLinkList read GetLinks;
     property Start: TAllureTime read GetStart write SetStart;
     property Stop: TAllureTime read GetStop write SetStop;
+    property Tag: TAllureTag read GetTag write SetTag;
   end;
 
   IAllureExecutableItem = interface
@@ -155,6 +159,8 @@ type
     procedure SetStart(const Value: TAllureTime); safecall;
     function GetStop: TAllureTime; safecall;
     procedure SetStop(const Value: TAllureTime); safecall;
+    function GetTag: TAllureTag; safecall;
+    procedure SetTag(const Value: TAllureTag); safecall;
 
     property Name: TAllureString read GetName write SetName;
     property Status: TAllureStatus read GetStatus write SetStatus;
@@ -167,6 +173,7 @@ type
     property Parameters: IAllureParameters read GetParameters;
     property Start: TAllureTime read GetStart write SetStart;
     property Stop: TAllureTime read GetStop write SetStop;
+    property Tag: TAllureTag read GetTag write SetTag;
   end;
 
   IAllureFixtureResult = interface(IAllureExecutableItem)
@@ -179,7 +186,7 @@ type
     function GetFixtureResult(Index: Integer): IAllureFixtureResult; safecall;
     function GetFixtureResultCount: Integer; safecall;
 
-    property FixtureResult[Index: Integer]: IAllureFixtureResult read GetFixtureResult;
+    property FixtureResult[Index: Integer]: IAllureFixtureResult read GetFixtureResult; default;
     property FixtureResultCount: Integer read GetFixtureResultCount;
 
     procedure Add(const Fixture: IAllureFixtureResult); safecall;
@@ -239,7 +246,7 @@ type
     function GetParameter(Index: Integer): IAllureParameter; safecall;
     function GetParameterCount: Integer; safecall;
 
-    property Parameter[Index: Integer]: IAllureParameter read GetParameter;
+    property Parameter[Index: Integer]: IAllureParameter read GetParameter; default;
     property ParameterCount: Integer read GetParameterCount;
   end;
 
@@ -265,7 +272,7 @@ type
     function GetAttachment(Index: Integer): IAllureAttachment; safecall;
     function GetAttachmentCount: Integer; safecall;
 
-    property Attachment[Index: Integer]: IAllureAttachment read GetAttachment;
+    property Attachment[Index: Integer]: IAllureAttachment read GetAttachment; default;
     property AttachmentCount: Integer read GetAttachmentCount;
 
     procedure Add(const Attachment: IAllureAttachment); safecall;
@@ -329,7 +336,7 @@ type
     function GetLabels(Index: Integer): IAllureLabel; safecall;
     function GetLabelCount: Integer; safecall;
 
-    property Labels[Index: Integer]: IAllureLabel read GetLabels;
+    property Labels[Index: Integer]: IAllureLabel read GetLabels; default;
     property LabelCount: Integer read GetLabelCount;
 
     function AddNew: IAllureLabel; safecall;
@@ -359,7 +366,7 @@ type
     function GetLink(Index: Integer): IAllureLink; safecall;
     function GetLinkCount: Integer; safecall;
 
-    property Link[Index: Integer]: IAllureLink read GetLink;
+    property Link[Index: Integer]: IAllureLink read GetLink; default;
     property LinkCount: Integer read GetLinkCount;
 
     function AddNew: IAllureLink; safecall;
@@ -391,6 +398,17 @@ type
     function CreateTestResultContainer: IAllureTestResultContainer; safecall;
     function CreateStepResult: IAllureStepResult; safecall;
     function CreateFixture: IAllureFixtureResult; safecall;
+
+    // Search for started and not closed container or test by Uuid
+    function GetObjectOfUuid(const Uuid: TAllureString): IUnknown; safecall;
+
+    // Search for started and not closed container or test by Tag
+    function GetObjectOfTag(Tag: TAllureTag): IUnknown; safecall;
+
+    // Returns the last Step, Fixture or Container
+    function GetCurrentObjectOfType(const InterfaceGUID: TGUID): IUnknown; safecall;
+    // Returns the Uuid of the last Step, Fixture or Container
+    function GetUuidOfCurrentObjectOfType(const InterfaceGUID: TGUID): TAllureString; safecall;
 
     // TestContainer
     (*
@@ -510,7 +528,7 @@ type
      *
      * @param uuid the uuid of test case to stop.
      *)
-    function StopTestCase(const BeforeStop: IAllureTestResultAction): IAllureLifecycle; overload; safecall;
+    function StopTestCase(const BeforeStop: IAllureTestResultAction=nil): IAllureLifecycle; overload; safecall;
     function StopTestCase(const Uuid: TAllureString): IAllureLifecycle; overload; safecall;
     (**
      * Writes test case with given uuid using configured {@link AllureResultsWriter}.

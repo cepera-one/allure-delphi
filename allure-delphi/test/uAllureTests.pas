@@ -4,7 +4,7 @@ interface
 
 uses
   DUnitX.TestFramework, allureDelphiHelper, allureDelphiInterface,
-  System.SysUtils, System.JSON, System.IOUtils, System.Hash;
+  System.SysUtils, System.JSON, System.IOUtils;
 
 type
 
@@ -88,7 +88,7 @@ var
 begin
   result := '';
   step := Allure.Lifecycle.CreateStepResult;
-  Uuid := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
+  Uuid := TAllureUuidHelper.CreateNew;
   step.Name := 'Step-' + Uuid;
   Allure.Lifecycle.StartStep(Uuid, step);
   Allure.Lifecycle.StopStep(Uuid);
@@ -128,7 +128,7 @@ begin
   Assert.IsNotNull(test);
   test.Name := 'ShouldAddAttachments';
   test.FullName := 'TAllureDelphiTests.ShouldAddAttachments';
-  test.HistoryID := THashMD5.GetHashString(test.Name);
+  test.HistoryID := TAllureUuidHelper.GenerateHistoryID(test.Name);
   test.Status := asPassed;
 
   Allure.Lifecycle.ScheduleTestCase(test);
@@ -190,7 +190,7 @@ begin
   res := Allure.Lifecycle.CreateTestResult;
   Assert.IsNotNull(res);
   res.Name := 'TAllureDelphiTests.ShouldAddStepsToTests';
-  res.HistoryID := THashMD5.GetHashString(res.Name);
+  res.HistoryID := TAllureUuidHelper.GenerateHistoryID(res.Name);
   res.Status := asPassed;
   res.Labels.AddNew.SetPackage('AllureDelphiTest.exe');
   res.Labels.AddNew.SetSeverity(aslCritical);
@@ -295,7 +295,7 @@ begin
   test := Allure.Lifecycle.CreateTestResult;
   Assert.IsNotNull(test);
   test.Name := 'TAllureDelphiTests.ShouldCreateTest';
-  test.HistoryID := THashMD5.GetHashString(test.Name);
+  test.HistoryID := TAllureUuidHelper.GenerateHistoryID(test.Name);
   test.Status := asPassed;
   test.Links.AddNew.SetIssue('SC-4558');
   test.Labels.AddNew.SetPackage('AllureDelphiTest.exe');
@@ -383,7 +383,7 @@ begin
   Allure.Lifecycle.StartTestContainer(container);
 
   fixture := Allure.Lifecycle.CreateFixture;
-  fixtureUuid := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
+  fixtureUuid := TAllureUuidHelper.CreateNew;
   fixture.Name := 'BeforeFixture-' + fixtureUuid;
   Allure.Lifecycle.StartBeforeFixture(container.UUID, fixtureUuid, fixture);
 
@@ -403,7 +403,7 @@ begin
   Allure.Lifecycle.WriteTestCase(test.UUID);
 
   fixture := Allure.Lifecycle.CreateFixture;
-  fixtureUuid := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
+  fixtureUuid := TAllureUuidHelper.CreateNew;
   fixture.Name := 'AfterFixture-' + fixtureUuid;
   Allure.Lifecycle.StartAfterFixture(container.UUID, fixtureUuid, fixture);
 
@@ -539,7 +539,7 @@ begin
   res := Allure.Lifecycle.CreateTestResult;
   Assert.IsNotNull(res);
   res.Name := 'TAllureDelphiTests.shouldUpdateTest';
-  res.HistoryID := THashMD5.GetHashString(res.Name);
+  res.HistoryID := TAllureUuidHelper.GenerateHistoryID(res.Name);
   res.Status := asFailed;
   res.Labels.AddNew.SetPackage('AllureDelphiTest.exe');
   res.Labels.AddNew.SetSeverity(aslNormal);
@@ -548,7 +548,7 @@ begin
   Allure.Lifecycle.StartTestCase(res.UUID);
 
   step := Allure.Lifecycle.CreateStepResult;
-  stepUuid := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
+  stepUuid := TAllureUuidHelper.CreateNew;
   step.Name := 'Step-' + stepUuid;
   Allure.Lifecycle.StartStep(stepUuid, step);
 

@@ -3,7 +3,8 @@ unit allureDelphiHelper;
 interface
 
 uses
-  allureDelphiInterface, Winapi.Windows, System.SysUtils, System.DateUtils;
+  allureDelphiInterface, Winapi.Windows, System.SysUtils, System.DateUtils,
+  System.Hash;
 
 type
 
@@ -25,6 +26,11 @@ type
 
   TAllureStageHelper = record helper for TAllureStage
     function ToString: string;
+  end;
+
+  TAllureUuidHelper = record
+    class function CreateNew: TAllureString; static;
+    class function GenerateHistoryID(const PersistentTestID: TAllureString): TAllureString; static;
   end;
 
   TMimeTypesMap = record
@@ -757,6 +763,19 @@ begin
       exit(MimeTypes[i].mime);
     end;
   end;
+end;
+
+{ TAllureUuidHelper }
+
+class function TAllureUuidHelper.CreateNew: TAllureString;
+begin
+  result := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
+end;
+
+class function TAllureUuidHelper.GenerateHistoryID(
+  const PersistentTestID: TAllureString): TAllureString;
+begin
+  result := THashMD5.GetHashString(PersistentTestID);
 end;
 
 initialization

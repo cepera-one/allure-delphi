@@ -49,6 +49,17 @@ type
     function CreateStepResult: IAllureStepResult; safecall;
     function CreateFixture: IAllureFixtureResult; safecall;
 
+    // Search for started and not closed container or test by Uuid
+    function GetObjectOfUuid(const Uuid: TAllureString): IUnknown; safecall;
+
+    // Search for started and not closed container or test by Tag
+    function GetObjectOfTag(Tag: TAllureTag): IUnknown; safecall;
+
+    // Return last Step, Fixture or Container
+    function GetCurrentObjectOfType(const InterfaceGUID: TGUID): IUnknown; safecall;
+    // Returns the Uuid of the last Step, Fixture or Container
+    function GetUuidOfCurrentObjectOfType(const InterfaceGUID: TGUID): TAllureString; safecall;
+
     // TestContainer
     (*
      * Starts test container with specified parent container.
@@ -167,7 +178,7 @@ type
      *
      * @param uuid the uuid of test case to stop.
      *)
-    function StopTestCase(const BeforeStop: IAllureTestResultAction): IAllureLifecycle; overload; safecall;
+    function StopTestCase(const BeforeStop: IAllureTestResultAction=nil): IAllureLifecycle; overload; safecall;
     function StopTestCase(const Uuid: TAllureString): IAllureLifecycle; overload; safecall;
     (**
      * Writes test case with given uuid using configured {@link AllureResultsWriter}.
@@ -400,7 +411,7 @@ var
   res: TAllureTestResult;
 begin
   res := TAllureTestResult.Create;
-  res.UUID := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
+  res.UUID := TAllureUuidHelper.CreateNew;
   result := res;
   res.SelfIncrement := false;
 end;
@@ -410,7 +421,7 @@ var
   res: TAllureTestResultContainer;
 begin
   res := TAllureTestResultContainer.Create;
-  res.UUID := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36);
+  res.UUID := TAllureUuidHelper.CreateNew;
   result := res;
   res.SelfIncrement := false;
 end;
@@ -450,6 +461,29 @@ begin
   result := fConfig;
 end;
 
+function TAllureLifecycle.GetCurrentObjectOfType(
+  const InterfaceGUID: TGUID): IUnknown;
+var
+  Uuids: TAllureThreadLocalStringList.TListOfStrings;
+  obj: TAllureInterfacedObject;
+  i: Integer;
+begin
+  result := nil;
+  fThreadContext.Lock;
+  fStorage.Lock;
+  try
+    Uuids := fThreadContext.List;
+    for i := Uuids.Count-1 downto 0 do begin
+      obj := fStorage.GetObject(Uuids[i]);
+      if (obj<>nil) and obj.GetInterface(InterfaceGUID, result) then
+        break;
+    end;
+  finally
+    fStorage.Unlock;
+    fThreadContext.Unlock;
+  end;
+end;
+
 function TAllureLifecycle.GetJsonConfiguration: TAllureString;
 begin
   GetAllureConfiguration;
@@ -464,10 +498,61 @@ begin
   result := fLifecycle;
 end;
 
+function TAllureLifecycle.GetObjectOfTag(Tag: TAllureTag): IUnknown;
+var
+  obj: TAllureInterfacedObject;
+begin
+  result := nil;
+  fStorage.Lock;
+  try
+    for obj in fStorage.Values do begin
+      if (obj is TAllureTestResultContainer) and (TAllureTestResultContainer(obj).Tag=Tag) or
+         (obj is TAllureExecutableItem) and (TAllureExecutableItem(obj).Tag=Tag)
+      then begin
+        result := obj;
+        break;
+      end;
+    end;
+  finally
+    fStorage.Unlock;
+  end;
+end;
+
+function TAllureLifecycle.GetObjectOfUuid(const Uuid: TAllureString): IUnknown;
+begin
+  result := fStorage.GetObject(Uuid);
+end;
+
 function TAllureLifecycle.GetResultsDirectory: TAllureString;
 begin
   GetAllureConfiguration;
   result := fConfig.Directory;
+end;
+
+function TAllureLifecycle.GetUuidOfCurrentObjectOfType(
+  const InterfaceGUID: TGUID): TAllureString;
+var
+  Uuids: TAllureThreadLocalStringList.TListOfStrings;
+  uuid: TAllureString;
+  obj: TAllureInterfacedObject;
+  intf: IUnknown;
+  i: Integer;
+begin
+  result := '';
+  fThreadContext.Lock;
+  fStorage.Lock;
+  try
+    Uuids := fThreadContext.List;
+    for i := Uuids.Count-1 downto 0 do begin
+      uuid := Uuids[i];
+      obj := fStorage.GetObject(uuid);
+      if (obj<>nil) and obj.GetInterface(InterfaceGUID, intf) then
+        exit(uuid);
+    end;
+  finally
+    fStorage.Unlock;
+    fThreadContext.Unlock;
+  end;
 end;
 
 function TAllureLifecycle.GetWriter: IAllureResultsWriter;
@@ -492,7 +577,7 @@ begin
       ext := FileExtension;
   end else
     ext := FileExtension;
-  result := Copy(AnsiLowerCase(TGUID.NewGuid.ToString), 2, 36) + ATTACHMENT_FILE_SUFFIX + ext;
+  result := TAllureUuidHelper.CreateNew + ATTACHMENT_FILE_SUFFIX + ext;
   uuid := fThreadContext.Peek;
   if uuid='' then begin
     //LOGGER.error("Could not add attachment: no test is running");
