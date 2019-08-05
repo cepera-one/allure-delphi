@@ -4,30 +4,30 @@ interface
 
 uses
   System.RTTI, DUnitX.TestFramework, allureDelphiInterface, allureDelphiHelper,
-  System.SysUtils, MethodsInterceptor, DUnitX.Extensibility;
+  System.SysUtils, MethodsInterceptor, DUnitX.Extensibility, DUnitX.Utils,
+  DUnitX.TestFixture, allureAttributes, DUnitX.Exceptions;
 
 type
 
   TDUnitXAllureLogger = class(TInterfacedObject, ITestLogger)
+  private class var
+    fRttiContext: TRttiContext;
   private
     fConfigFileName: string;
     fMethodsInterceptor: TMethodsInterceptor;
 
     function Cast(const intf: IUnknown; const IID: TGUID; out Res): Boolean;
     function IsSupportedFixture(const Fixture: ITestFixtureInfo): Boolean;
+    function GetFixtureInstance(const Fixture: ITestFixtureInfo): Pointer;
     function CreateContainerOfFixture(const Fixture: ITestFixtureInfo): IAllureTestResultContainer;
-    function CreateBeforeFixture(const Fixture: ITestFixtureInfo): IAllureFixtureResult;
+    function CreateBeforeFixture(const MethodName: string): IAllureFixtureResult;
     function CreateTestResult(const Test: ITestInfo): IAllureTestResult;
-    function CreateStepBeforeTest(const Test: ITestInfo): IAllureStepResult;
-    function CreateBodyStepOfTest(const Test: ITestInfo): IAllureStepResult;
-    function CreateStepAfterTest(const Test: ITestInfo): IAllureStepResult;
-    function CreateAfterFixture(const Fixture: ITestFixtureInfo): IAllureFixtureResult;
+    function CreateStepBeforeTest(const MethodName: string): IAllureStepResult;
+    function CreateStepAfterTest(const MethodName: string): IAllureStepResult;
+    function CreateAfterFixture(const MethodName: string): IAllureFixtureResult;
+    function CreateStep(Instance: TObject; Method: TRttiMethod; const Args: TArray<TValue>): IAllureStepResult;
 
-    // Have to call it manually because DUnitX really do not do it
-    procedure DoOnEndTeardownTest(const threadId: TThreadID; const Test: ITestInfo);
-    // Have to call it manually because DUnitX really do not do it
-    procedure DoOnEndTearDownFixture(const threadId: TThreadID; const fixture: ITestFixtureInfo);
-
+    procedure ProxifyFixture(const Fixture: ITestFixtureInfo; Back: Boolean = false);
 
     procedure BeforeFixtureMethodCall(Instance: TObject; Method: TRttiMethod;
       const Args: TArray<TValue>; out DoInvoke: Boolean; out Result: TValue);
@@ -36,10 +36,61 @@ type
     procedure HandleExceptionInFixtureMethod(Instance: TObject; Method: TRttiMethod;
       const Args: TArray<TValue>; out RaiseException: Boolean;
       TheException: Exception; out Result: TValue);
-    procedure ProxifyFixture(const Fixture: ITestFixtureInfo; Back: Boolean = false);
+
+    // SetupFixture
+    procedure BeforeSetupFixture(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out DoInvoke: Boolean; out Result: TValue);
+    procedure AfterSetupFixture(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; var Result: TValue);
+    procedure HandleExceptionInSetupFixture(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out RaiseException: Boolean;
+      TheException: Exception; out Result: TValue);
+    procedure EndSetupFixture(Instance: TObject; Method: TRttiMethod);
+
+    // TearDownFixture
+    procedure BeforeTearDownFixture(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out DoInvoke: Boolean; out Result: TValue);
+    procedure AfterTearDownFixture(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; var Result: TValue);
+    procedure HandleExceptionInTearDownFixture(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out RaiseException: Boolean;
+      TheException: Exception; out Result: TValue);
+    procedure EndTearDownFixture(Instance: TObject; Method: TRttiMethod);
+
+    // SetupTest
+    procedure BeforeSetupTest(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out DoInvoke: Boolean; out Result: TValue);
+    procedure AfterSetupTest(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; var Result: TValue);
+    procedure HandleExceptionInSetupTest(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out RaiseException: Boolean;
+      TheException: Exception; out Result: TValue);
+    procedure EndSetupTest(Instance: TObject; Method: TRttiMethod);
+
+    // TearDownTest
+    procedure BeforeTearDownTest(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out DoInvoke: Boolean; out Result: TValue);
+    procedure AfterTearDownTest(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; var Result: TValue);
+    procedure HandleExceptionInTearDownTest(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out RaiseException: Boolean;
+      TheException: Exception; out Result: TValue);
+    procedure EndTearDownTest(Instance: TObject; Method: TRttiMethod);
+
+    // Step
+    procedure BeforeStepExecute(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out DoInvoke: Boolean; out Result: TValue);
+    procedure AfterStepExecute(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; var Result: TValue);
+    procedure HandleExceptionInStepExecute(Instance: TObject; Method: TRttiMethod;
+      const Args: TArray<TValue>; out RaiseException: Boolean;
+      TheException: Exception; out Result: TValue);
+    procedure EndStepExecute(Instance: TObject; Method: TRttiMethod);
 
     procedure SetConfigFileName(const Value: string);
   public
+    class constructor CreateClass;
+    class destructor DestroyClass;
     constructor Create;
     destructor Destroy; override;
 
@@ -159,17 +210,154 @@ implementation
 
 procedure TDUnitXAllureLogger.AfterFixtureMethodCall(Instance: TObject;
   Method: TRttiMethod; const Args: TArray<TValue>; var Result: TValue);
+var
+  setupAttrib : SetupAttribute;
+  setupFixtureAttrib : SetupFixtureAttribute;
+  tearDownAttrib : TearDownAttribute;
+  tearDownFixtureAttrib : TearDownFixtureAttribute;
+  stepAttrib: StepAttribute;
 begin
-  Result := Result;
+  if Method.TryGetAttributeOfType<SetupFixtureAttribute>(setupFixtureAttrib) then begin
+    AfterSetupFixture(Instance, Method, Args, Result);
+  end else if Method.TryGetAttributeOfType<TearDownFixtureAttribute>(tearDownFixtureAttrib) then begin
+    AfterTearDownFixture(Instance, Method, Args, Result);
+  end else if Method.TryGetAttributeOfType<SetupAttribute>(setupAttrib) then begin
+    AfterSetupTest(Instance, Method, Args, Result);
+  end else if Method.TryGetAttributeOfType<TearDownAttribute>(tearDownAttrib) then begin
+    AfterTearDownTest(Instance, Method, Args, Result);
+  end else if Method.TryGetAttributeOfType<StepAttribute>(stepAttrib) then begin
+    AfterStepExecute(Instance, Method, Args, Result);
+  end else begin
+  end;
+end;
+
+procedure TDUnitXAllureLogger.AfterSetupFixture(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; var Result: TValue);
+begin
+  EndSetupFixture(Instance, Method);
+end;
+
+procedure TDUnitXAllureLogger.AfterSetupTest(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; var Result: TValue);
+begin
+  EndSetupTest(Instance, Method);
+end;
+
+procedure TDUnitXAllureLogger.AfterStepExecute(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; var Result: TValue);
+begin
+  EndStepExecute(Instance, Method);
+end;
+
+procedure TDUnitXAllureLogger.AfterTearDownFixture(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; var Result: TValue);
+begin
+  EndTearDownFixture(Instance, Method);
+end;
+
+procedure TDUnitXAllureLogger.AfterTearDownTest(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; var Result: TValue);
+begin
+  EndTearDownTest(Instance, Method);
 end;
 
 procedure TDUnitXAllureLogger.BeforeFixtureMethodCall(Instance: TObject;
   Method: TRttiMethod; const Args: TArray<TValue>; out DoInvoke: Boolean;
   out Result: TValue);
+var
+  setupAttrib : SetupAttribute;
+  setupFixtureAttrib : SetupFixtureAttribute;
+  tearDownAttrib : TearDownAttribute;
+  tearDownFixtureAttrib : TearDownFixtureAttribute;
+  stepAttrib: StepAttribute;
 begin
-  if Instance<>nil then begin
+  if Method.TryGetAttributeOfType<SetupFixtureAttribute>(setupFixtureAttrib) then begin
+    BeforeSetupFixture(Instance, Method, Args, DoInvoke, Result);
+  end else if Method.TryGetAttributeOfType<TearDownFixtureAttribute>(tearDownFixtureAttrib) then begin
+    BeforeTearDownFixture(Instance, Method, Args, DoInvoke, Result);
+  end else if Method.TryGetAttributeOfType<SetupAttribute>(setupAttrib) then begin
+    BeforeSetupTest(Instance, Method, Args, DoInvoke, Result);
+  end else if Method.TryGetAttributeOfType<TearDownAttribute>(tearDownAttrib) then begin
+    BeforeTearDownTest(Instance, Method, Args, DoInvoke, Result);
+  end else if Method.TryGetAttributeOfType<StepAttribute>(stepAttrib) then begin
+    BeforeStepExecute(Instance, Method, Args, DoInvoke, Result);
+  end else begin
     DoInvoke := true;
+    Result := TValue.Empty;
   end;
+end;
+
+procedure TDUnitXAllureLogger.BeforeSetupFixture(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out DoInvoke: Boolean;
+  out Result: TValue);
+var
+  container: IAllureTestResultContainer;
+  before: IAllureFixtureResult;
+begin
+  DoInvoke := true;
+  Result := TValue.Empty;
+  //if not IsSupportedFixture(fixture) then exit;
+  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Instance)), IAllureTestResultContainer, container)
+  then begin
+    before := CreateBeforeFixture(Method.Name);
+    Allure.Lifecycle.StartBeforeFixture(container.UUID, TAllureUuidHelper.CreateNew, before);
+  end;
+end;
+
+procedure TDUnitXAllureLogger.BeforeSetupTest(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out DoInvoke: Boolean;
+  out Result: TValue);
+var
+  beforeTest: IAllureStepResult;
+begin
+  DoInvoke := true;
+  Result := TValue.Empty;
+  //if not Test.Active then exit;
+  beforeTest := CreateStepBeforeTest(Method.Name);
+  Allure.Lifecycle.StartStep(TAllureUuidHelper.CreateNew, beforeTest);
+end;
+
+procedure TDUnitXAllureLogger.BeforeStepExecute(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out DoInvoke: Boolean;
+  out Result: TValue);
+var
+  step: IAllureStepResult;
+begin
+  DoInvoke := true;
+  Result := TValue.Empty;
+  //if not Test.Active then exit;
+  step := CreateStep(Instance, Method, Args);
+  Allure.Lifecycle.StartStep(TAllureUuidHelper.CreateNew, step);
+end;
+
+procedure TDUnitXAllureLogger.BeforeTearDownFixture(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out DoInvoke: Boolean;
+  out Result: TValue);
+var
+  container: IAllureTestResultContainer;
+  after: IAllureFixtureResult;
+begin
+  DoInvoke := true;
+  Result := TValue.Empty;
+  //if not IsSupportedFixture(fixture) then exit;
+  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Instance)), IAllureTestResultContainer, container)
+  then begin
+    after := CreateAfterFixture(Method.Name);
+    Allure.Lifecycle.StartAfterFixture(container.UUID, TAllureUuidHelper.CreateNew, after);
+  end;
+end;
+
+procedure TDUnitXAllureLogger.BeforeTearDownTest(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out DoInvoke: Boolean;
+  out Result: TValue);
+var
+  afterTest: IAllureStepResult;
+begin
+  DoInvoke := true;
+  Result := TValue.Empty;
+  //if not Test.Active then exit;
+  afterTest := CreateStepAfterTest(Method.Name);
+  Allure.Lifecycle.StartStep(TAllureUuidHelper.CreateNew, afterTest);
 end;
 
 function TDUnitXAllureLogger.Cast(const intf: IInterface; const IID: TGUID;
@@ -190,24 +378,24 @@ begin
 end;
 
 function TDUnitXAllureLogger.CreateAfterFixture(
-  const Fixture: ITestFixtureInfo): IAllureFixtureResult;
+  const MethodName: string): IAllureFixtureResult;
 begin
   result := Allure.Lifecycle.CreateFixture;
-  result.Name := Fixture.TearDownFixtureMethodName;
+  result.Name := MethodName;
+  result.Status := asPassed;
 end;
 
 function TDUnitXAllureLogger.CreateBeforeFixture(
-  const Fixture: ITestFixtureInfo): IAllureFixtureResult;
+  const MethodName: string): IAllureFixtureResult;
 begin
   result := Allure.Lifecycle.CreateFixture;
-  result.Name := Fixture.SetupFixtureMethodName;
+  result.Name := MethodName;
+  result.Status := asPassed;
 end;
 
-function TDUnitXAllureLogger.CreateBodyStepOfTest(
-  const Test: ITestInfo): IAllureStepResult;
+class constructor TDUnitXAllureLogger.CreateClass;
 begin
-  result := Allure.Lifecycle.CreateStepResult;
-  result.Name := 'TestBody';
+  fRttiContext := TRttiContext.Create;
 end;
 
 function TDUnitXAllureLogger.CreateContainerOfFixture(const Fixture: ITestFixtureInfo): IAllureTestResultContainer;
@@ -215,23 +403,33 @@ begin
   result := nil;
   if Fixture=nil then exit;
   result := allure.Lifecycle.CreateTestResultContainer;
-  result.Tag := TAllureTag(Fixture);
+  result.Tag := TAllureTag(GetFixtureInstance(Fixture));
   result.Name := Fixture.Name;
   result.Description := Fixture.Description;
 end;
 
 function TDUnitXAllureLogger.CreateStepAfterTest(
-  const Test: ITestInfo): IAllureStepResult;
+  const MethodName: string): IAllureStepResult;
 begin
   result := Allure.Lifecycle.CreateStepResult;
-  result.Name := 'TestTearDown';
+  result.Name := MethodName;
+  result.Status := asPassed;
+end;
+
+function TDUnitXAllureLogger.CreateStep(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>): IAllureStepResult;
+begin
+  result := Allure.Lifecycle.CreateStepResult;
+  result.Name := Method.Name;
+  result.Status := asPassed;
 end;
 
 function TDUnitXAllureLogger.CreateStepBeforeTest(
-  const Test: ITestInfo): IAllureStepResult;
+  const MethodName: string): IAllureStepResult;
 begin
   result := Allure.Lifecycle.CreateStepResult;
-  result.Name := 'TestSetup';
+  result.Name := MethodName;
+  result.Status := asPassed;
 end;
 
 function TDUnitXAllureLogger.CreateTestResult(
@@ -259,34 +457,193 @@ begin
   inherited;
 end;
 
-procedure TDUnitXAllureLogger.DoOnEndTearDownFixture(const threadId: TThreadID;
-  const fixture: ITestFixtureInfo);
+class destructor TDUnitXAllureLogger.DestroyClass;
 begin
-  if fixture.TearDownFixtureMethodName<>'' then begin
-    try
-      self.OnEndTearDownFixture(threadId, fixture);
-    except
-    end;
+  fRttiContext.Free;
+end;
+
+procedure TDUnitXAllureLogger.EndSetupFixture(Instance: TObject;
+  Method: TRttiMethod);
+var
+  beforeUuid: TAllureString;
+  container: IAllureTestResultContainer;
+begin
+  //if not IsSupportedFixture(fixture) then exit;
+  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Instance)), IAllureTestResultContainer, container)
+  then begin
+    beforeUuid := Allure.Lifecycle.GetUuidOfCurrentObjectOfType(IAllureFixtureResult);
+    if beforeUuid<>'' then
+      Allure.Lifecycle.StopFixture(beforeUuid);
   end;
 end;
 
-procedure TDUnitXAllureLogger.DoOnEndTeardownTest(const threadId: TThreadID;
-  const Test: ITestInfo);
+procedure TDUnitXAllureLogger.EndSetupTest(Instance: TObject;
+  Method: TRttiMethod);
 begin
-  if Test=nil then exit;
-  if Test.Fixture.TearDownMethodName<>'' then begin
-    try
-      self.OnEndTeardownTest(threadId, Test);
-    except
-    end;
+  //if not Test.Active then exit;
+  Allure.Lifecycle.StopStep;
+end;
+
+procedure TDUnitXAllureLogger.EndStepExecute(Instance: TObject;
+  Method: TRttiMethod);
+begin
+  Allure.Lifecycle.StopStep;
+end;
+
+procedure TDUnitXAllureLogger.EndTearDownFixture(Instance: TObject;
+  Method: TRttiMethod);
+var
+  afterUuid: TAllureString;
+  container: IAllureTestResultContainer;
+begin
+  //if not IsSupportedFixture(fixture) then exit;
+  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Instance)), IAllureTestResultContainer, container)
+  then begin
+    afterUuid := Allure.Lifecycle.GetUuidOfCurrentObjectOfType(IAllureFixtureResult);
+    if afterUuid<>'' then
+      Allure.Lifecycle.StopFixture(afterUuid);
   end;
+end;
+
+procedure TDUnitXAllureLogger.EndTearDownTest(Instance: TObject;
+  Method: TRttiMethod);
+begin
+  //if not Test.Active then exit;
+  Allure.Lifecycle.StopStep;
+end;
+
+function TDUnitXAllureLogger.GetFixtureInstance(
+  const Fixture: ITestFixtureInfo): Pointer;
+var
+  f: ITestFixture;
+begin
+  result := nil;
+  if Fixture=nil then exit;
+  if cast(Fixture, ITestFixture, f) then
+    result := f.FixtureInstance;
 end;
 
 procedure TDUnitXAllureLogger.HandleExceptionInFixtureMethod(Instance: TObject;
   Method: TRttiMethod; const Args: TArray<TValue>; out RaiseException: Boolean;
   TheException: Exception; out Result: TValue);
+var
+  setupAttrib : SetupAttribute;
+  setupFixtureAttrib : SetupFixtureAttribute;
+  tearDownAttrib : TearDownAttribute;
+  tearDownFixtureAttrib : TearDownFixtureAttribute;
+  stepAttrib: StepAttribute;
+begin
+  if Method.TryGetAttributeOfType<SetupFixtureAttribute>(setupFixtureAttrib) then begin
+    HandleExceptionInSetupFixture(Instance, Method, Args, RaiseException, TheException, Result);
+  end else if Method.TryGetAttributeOfType<TearDownFixtureAttribute>(tearDownFixtureAttrib) then begin
+    HandleExceptionInTearDownFixture(Instance, Method, Args, RaiseException, TheException, Result);
+  end else if Method.TryGetAttributeOfType<SetupAttribute>(setupAttrib) then begin
+    HandleExceptionInSetupTest(Instance, Method, Args, RaiseException, TheException, Result);
+  end else if Method.TryGetAttributeOfType<TearDownAttribute>(tearDownAttrib) then begin
+    HandleExceptionInTearDownTest(Instance, Method, Args, RaiseException, TheException, Result);
+  end else if Method.TryGetAttributeOfType<StepAttribute>(stepAttrib) then begin
+    HandleExceptionInStepExecute(Instance, Method, Args, RaiseException, TheException, Result);
+  end else begin
+    RaiseException := true;
+    Result := TValue.Empty;
+  end;
+end;
+
+procedure TDUnitXAllureLogger.HandleExceptionInSetupFixture(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out RaiseException: Boolean;
+  TheException: Exception; out Result: TValue);
+var
+  container: IAllureTestResultContainer;
+  before: IAllureFixtureResult;
 begin
   RaiseException := true;
+  Result := TValue.Empty;
+  //if not IsSupportedFixture(fixture) then exit;
+  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Instance)), IAllureTestResultContainer, container) and
+     Cast(Allure.Lifecycle.GetCurrentObjectOfType(IAllureFixtureResult), IAllureFixtureResult, before)
+  then begin
+    before.Status := asBroken;
+    before.StatusDetails.Message := TheException.Message;
+    before.StatusDetails.Trace := TheException.StackTrace;
+  end;
+  EndSetupFixture(Instance, Method);
+end;
+
+procedure TDUnitXAllureLogger.HandleExceptionInSetupTest(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out RaiseException: Boolean;
+  TheException: Exception; out Result: TValue);
+var
+  step: IAllureStepResult;
+begin
+  RaiseException := true;
+  Result := TValue.Empty;
+  if Cast(Allure.Lifecycle.GetCurrentObjectOfType(IAllureStepResult), IAllureStepResult, step)
+  then begin
+    step.Status := asBroken;
+    step.StatusDetails.Message := TheException.Message;
+    step.StatusDetails.Trace := TheException.StackTrace;
+  end;
+  EndSetupTest(Instance, Method);
+end;
+
+procedure TDUnitXAllureLogger.HandleExceptionInStepExecute(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out RaiseException: Boolean;
+  TheException: Exception; out Result: TValue);
+var
+  step: IAllureStepResult;
+begin
+  RaiseException := true;
+  Result := TValue.Empty;
+  if Cast(Allure.Lifecycle.GetCurrentObjectOfType(IAllureStepResult), IAllureStepResult, step)
+  then begin
+    if TheException is ETestFailure then begin
+      step.Status := asFailed;
+    end else if TheException is ETestPass then begin
+      step.Status := asPassed;
+    end else begin
+      step.Status := asBroken;
+    end;
+    step.StatusDetails.Message := TheException.Message;
+    step.StatusDetails.Trace := TheException.StackTrace;
+  end;
+  EndStepExecute(Instance, Method);
+end;
+
+procedure TDUnitXAllureLogger.HandleExceptionInTearDownFixture(
+  Instance: TObject; Method: TRttiMethod; const Args: TArray<TValue>;
+  out RaiseException: Boolean; TheException: Exception; out Result: TValue);
+var
+  container: IAllureTestResultContainer;
+  after: IAllureFixtureResult;
+begin
+  RaiseException := true;
+  Result := TValue.Empty;
+  //if not IsSupportedFixture(fixture) then exit;
+  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Instance)), IAllureTestResultContainer, container) and
+     Cast(Allure.Lifecycle.GetCurrentObjectOfType(IAllureFixtureResult), IAllureFixtureResult, after)
+  then begin
+    after.Status := asBroken;
+    after.StatusDetails.Message := TheException.Message;
+    after.StatusDetails.Trace := TheException.StackTrace;
+  end;
+  EndTearDownFixture(Instance, Method);
+end;
+
+procedure TDUnitXAllureLogger.HandleExceptionInTearDownTest(Instance: TObject;
+  Method: TRttiMethod; const Args: TArray<TValue>; out RaiseException: Boolean;
+  TheException: Exception; out Result: TValue);
+var
+  step: IAllureStepResult;
+begin
+  RaiseException := true;
+  Result := TValue.Empty;
+  if Cast(Allure.Lifecycle.GetCurrentObjectOfType(IAllureStepResult), IAllureStepResult, step)
+  then begin
+    step.Status := asBroken;
+    step.StatusDetails.Message := TheException.Message;
+    step.StatusDetails.Trace := TheException.StackTrace;
+  end;
+  EndTearDownTest(Instance, Method);
 end;
 
 function TDUnitXAllureLogger.IsSupportedFixture(
@@ -302,7 +659,7 @@ var
   container: IAllureTestResultContainer;
 begin
   if not Test.Active then exit;
-  Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Test.Fixture)), IAllureTestResultContainer, container);
+  Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(GetFixtureInstance(Test.Fixture))), IAllureTestResultContainer, container);
   tr := CreateTestResult(Test);
   if container<>nil then
     Allure.Lifecycle.ScheduleTestCase(container.UUID, tr)
@@ -313,46 +670,26 @@ end;
 
 procedure TDUnitXAllureLogger.OnEndSetupFixture(const threadId: TThreadID;
   const fixture: ITestFixtureInfo);
-var
-  beforeUuid: TAllureString;
-  container: IAllureTestResultContainer;
 begin
-  if not IsSupportedFixture(fixture) then exit;
-  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(fixture)), IAllureTestResultContainer, container)
-  then begin
-    beforeUuid := Allure.Lifecycle.GetUuidOfCurrentObjectOfType(IAllureFixtureResult);
-    if beforeUuid<>'' then
-      Allure.Lifecycle.StopFixture(beforeUuid);
-  end;
+
 end;
 
 procedure TDUnitXAllureLogger.OnEndSetupTest(const threadId: TThreadID;
   const Test: ITestInfo);
 begin
-  if not Test.Active then exit;
-  Allure.Lifecycle.StopStep;
+
 end;
 
 procedure TDUnitXAllureLogger.OnEndTearDownFixture(
   const threadId: TThreadID; const fixture: ITestFixtureInfo);
-var
-  afterUuid: TAllureString;
-  container: IAllureTestResultContainer;
 begin
-  if not IsSupportedFixture(fixture) then exit;
-  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(fixture)), IAllureTestResultContainer, container)
-  then begin
-    afterUuid := Allure.Lifecycle.GetUuidOfCurrentObjectOfType(IAllureFixtureResult);
-    if afterUuid<>'' then
-      Allure.Lifecycle.StopFixture(afterUuid);
-  end;
+
 end;
 
 procedure TDUnitXAllureLogger.OnEndTeardownTest(const threadId: TThreadID;
   const Test: ITestInfo);
 begin
-  if not Test.Active then exit;
-  Allure.Lifecycle.StopStep;
+
 end;
 
 procedure TDUnitXAllureLogger.OnEndTest(const threadId: TThreadID;
@@ -372,9 +709,8 @@ procedure TDUnitXAllureLogger.OnEndTestFixture(const threadId: TThreadID;
 var
   container: IAllureTestResultContainer;
 begin
-  //DoOnEndTearDownFixture(threadId, results.Fixture);
   if not IsSupportedFixture(results.fixture) then exit;
-  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(results.Fixture)), IAllureTestResultContainer, container)
+  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(GetFixtureInstance(results.Fixture))), IAllureTestResultContainer, container)
   then begin
     Allure.Lifecycle.StopTestContainer(container.UUID);
     Allure.Lifecycle.WriteTestContainer(container.UUID);
@@ -384,12 +720,8 @@ end;
 
 procedure TDUnitXAllureLogger.OnExecuteTest(const threadId: TThreadID;
   const Test: ITestInfo);
-var
-  body: IAllureStepResult;
 begin
-  if not Test.Active then exit;
-//  body := CreateBodyStepOfTest(Test);
-//  Allure.Lifecycle.StartStep(TAllureUuidHelper.CreateNew, body);
+  
 end;
 
 procedure TDUnitXAllureLogger.OnLog(const logType: TLogLevel;
@@ -400,26 +732,14 @@ end;
 
 procedure TDUnitXAllureLogger.OnSetupFixture(const threadId: TThreadID;
   const fixture: ITestFixtureInfo);
-var
-  before: IAllureFixtureResult;
-  container: IAllureTestResultContainer;
 begin
-  if not IsSupportedFixture(fixture) then exit;
-  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(fixture)), IAllureTestResultContainer, container)
-  then begin
-    before := CreateBeforeFixture(fixture);
-    Allure.Lifecycle.StartBeforeFixture(container.UUID, TAllureUuidHelper.CreateNew, before);
-  end;
+
 end;
 
 procedure TDUnitXAllureLogger.OnSetupTest(const threadId: TThreadID;
   const Test: ITestInfo);
-var
-  beforeTest: IAllureStepResult;
 begin
-  if not Test.Active then exit;
-  beforeTest := CreateStepBeforeTest(Test);
-  Allure.Lifecycle.StartStep(TAllureUuidHelper.CreateNew, beforeTest);
+
 end;
 
 procedure TDUnitXAllureLogger.OnStartTestFixture(const threadId: TThreadID;
@@ -428,52 +748,33 @@ var
   container: IAllureTestResultContainer;
 begin
   if not IsSupportedFixture(fixture) then exit;
+  ProxifyFixture(fixture);
   container := CreateContainerOfFixture(fixture);
   Allure.Lifecycle.StartTestContainer(container);
-  ProxifyFixture(fixture);
 end;
 
 procedure TDUnitXAllureLogger.OnTearDownFixture(const threadId: TThreadID;
   const fixture: ITestFixtureInfo);
-var
-  after: IAllureFixtureResult;
-  container: IAllureTestResultContainer;
 begin
-  if not IsSupportedFixture(fixture) then exit;
-  if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(fixture)), IAllureTestResultContainer, container)
-  then begin
-    after := CreateAfterFixture(fixture);
-    Allure.Lifecycle.StartAfterFixture(container.UUID, TAllureUuidHelper.CreateNew, after);
-  end;
+
 end;
 
 procedure TDUnitXAllureLogger.OnTeardownTest(const threadId: TThreadID;
   const Test: ITestInfo);
-var
-  afterTest: IAllureStepResult;
 begin
-  if not Test.Active then exit;
-  afterTest := CreateStepAfterTest(Test);
-  Allure.Lifecycle.StartStep(TAllureUuidHelper.CreateNew, afterTest);
+
 end;
 
 procedure TDUnitXAllureLogger.OnTestError(const threadId: TThreadID;
   const Error: ITestError);
 var
   tr: IAllureTestResult;
-  body: IAllureStepResult;
 begin
-  DoOnEndTeardownTest(threadId, Error.Test);
   if not Error.Test.Active then exit;
-  // Stop body step
-//  Allure.Lifecycle.StopStep;
   if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Error.Test)), IAllureTestResult, tr) then begin
     tr.Status := asBroken;
-//    if tr.Steps.StepCount>0 then begin
-//      body := tr.Steps.Step[tr.Steps.StepCount-1];
-//      body.Status := asBroken;
-//      body.StatusDetails.Message := Error.Message;
-//    end;
+    tr.StatusDetails.Message := Error.Message;
+    tr.StatusDetails.Trace := Error.StackTrace;
   end;
 end;
 
@@ -481,19 +782,12 @@ procedure TDUnitXAllureLogger.OnTestFailure(const threadId: TThreadID;
   const Failure: ITestError);
 var
   tr: IAllureTestResult;
-  body: IAllureStepResult;
 begin
-  DoOnEndTeardownTest(threadId, Failure.Test);
   if not Failure.Test.Active then exit;
-  // Stop body step
-//  Allure.Lifecycle.StopStep;
   if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Failure.Test)), IAllureTestResult, tr) then begin
     tr.Status := asFailed;
-//    if tr.Steps.StepCount>0 then begin
-//      body := tr.Steps.Step[tr.Steps.StepCount-1];
-//      body.Status := asFailed;
-//      body.StatusDetails.Message := Failure.Message;
-//    end;
+    tr.StatusDetails.Message := Failure.Message;
+    tr.StatusDetails.Trace := Failure.StackTrace;
   end;
 end;
 
@@ -521,17 +815,11 @@ procedure TDUnitXAllureLogger.OnTestMemoryLeak(const threadId: TThreadID;
   const Test: ITestResult);
 var
   tr: IAllureTestResult;
-  body: IAllureStepResult;
 begin
-  DoOnEndTeardownTest(threadId, Test.Test);
   if not Test.Test.Active then exit;
   if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Test.Test)), IAllureTestResult, tr) then begin
     tr.Status := asBroken;
-//    if tr.Steps.StepCount>0 then begin
-//      body := tr.Steps.Step[tr.Steps.StepCount-1];
-//      body.Status := asBroken;
-//      body.StatusDetails.Message := Test.Message
-//    end;
+    tr.StatusDetails.Message := Test.Message;
   end;
 end;
 
@@ -539,23 +827,107 @@ procedure TDUnitXAllureLogger.OnTestSuccess(const threadId: TThreadID;
   const Test: ITestResult);
 var
   tr: IAllureTestResult;
-  body: IAllureStepResult;
 begin
-  DoOnEndTeardownTest(threadId, Test.Test);
   if not Test.Test.Active then exit;
-  // Stop body step
-//  Allure.Lifecycle.StopStep;
   if Cast(Allure.Lifecycle.GetObjectOfTag(TAllureTag(Test.Test)), IAllureTestResult, tr) then begin
     tr.Status := asPassed;
-    if tr.Steps.StepCount>0 then begin
-      body := tr.Steps.Step[tr.Steps.StepCount-1];
-      body.Status := asPassed;
-    end;
   end;
 end;
 
 procedure TDUnitXAllureLogger.ProxifyFixture(const Fixture: ITestFixtureInfo;
   Back: Boolean);
+
+  procedure UpdateMethodPointers(const f: ITestFixture);
+  type
+    PPVtable = ^PVtable;
+    PVtable = ^TVtable;
+    TVtable = array[0..MaxInt div SizeOf(Pointer) - 1] of Pointer;
+    PVtablePtr = PVtable;
+  var
+    rType : TRttiType;
+    methods : TArray<TRttiMethod>;
+    method : TRttiMethod;
+    meth : TMethod;
+    setupMethod : TTestMethod;
+    tearDownMethod : TTestMethod;
+    setupFixtureMethod : TTestMethod;
+    tearDownFixtureMethod : TTestMethod;
+    setupAttrib : SetupAttribute;
+    setupFixtureAttrib : SetupFixtureAttribute;
+    tearDownAttrib : TearDownAttribute;
+    tearDownFixtureAttrib : TearDownFixtureAttribute;
+    c: TClass;
+    rf: TRttiField;
+  begin
+    rType := fRttiContext.GetType(TDUnitXTestFixture);
+    if rType<>nil then begin
+      rf := rType.GetField('FIgnoreFixtureSetup');
+      if rf<>nil then
+        rf.SetValue(f as TObject, false);
+    end;
+    c := fMethodsInterceptor.GetProxiClassOfOriginal(fixture.TestClass);
+    rType := fRttiContext.GetType(c);
+    System.Assert(rType <> nil);
+    //it's a dummy namespace fixture, don't bother with the rest.
+    if rType.Handle = TypeInfo(TObject) then
+      exit;
+
+    setupMethod := nil;
+    tearDownMethod := nil;
+    setupFixtureMethod := nil;
+    tearDownFixtureMethod := nil;
+
+    methods := rType.GetMethods;
+    for method in methods do begin
+      meth.Code := PVtablePtr(c)[method.VirtualIndex];//method.CodeAddress;
+      meth.Data := f.FixtureInstance;
+
+      if (not Assigned(setupFixtureMethod)) and
+         method.TryGetAttributeOfType<SetupFixtureAttribute>(setupFixtureAttrib)
+      then begin
+         setupFixtureMethod := TTestMethod(meth);
+         f.SetSetupFixtureMethod(method.Name, setupFixtureMethod);
+         continue;
+      end;
+
+//      {$IFDEF DELPHI_XE_UP}
+//      //if there is a Destructor then we will use it as the fixture
+//      //Teardown method.
+//      if (not Assigned(tearDownFixtureMethod)) and method.IsDestructor and (Length(method.GetParameters) = 0) then
+//      begin
+//        tearDownFixtureMethod := TTestMethod(meth);
+//        currentFixture.SetTearDownFixtureMethod(method.Name,TTestMethod(meth),true);
+//        tearDownFixtureIsDestructor := true;
+//        continue;
+//      end;
+//      {$ENDIF}
+
+      //if we had previously assigned a destructor as the teardownfixturemethod, then we can still override that with an attributed one.
+      if ((not Assigned(tearDownFixtureMethod)) {or tearDownFixtureIsDestructor}) and
+         method.TryGetAttributeOfType<TearDownFixtureAttribute>(tearDownFixtureAttrib)
+      then begin
+         tearDownFixtureMethod := TTestMethod(meth);
+         f.SetTearDownFixtureMethod(method.Name, tearDownFixtureMethod, false);
+//         tearDownFixtureIsDestructor := false;
+         continue;
+      end;
+
+      if (not Assigned(setupMethod)) and method.TryGetAttributeOfType<SetupAttribute>(setupAttrib)
+      then begin
+        setupMethod := TTestMethod(meth);
+        f.SetSetupTestMethod(method.Name, setupMethod);
+        continue;
+      end;
+
+      if (not Assigned(tearDownMethod)) and method.TryGetAttributeOfType<TearDownAttribute>(tearDownAttrib)
+      then begin
+        tearDownMethod := TTestMethod(meth);
+        f.SetTearDownTestMethod(method.Name,tearDownMethod);
+        continue;
+      end;
+    end;
+  end;
+
 var
   f: ITestFixture;
 begin
@@ -566,6 +938,7 @@ begin
         fMethodsInterceptor.Unproxify(f.FixtureInstance)
       else
         fMethodsInterceptor.Proxify(f.FixtureInstance);
+      UpdateMethodPointers(f);
     end;
   except
   end;

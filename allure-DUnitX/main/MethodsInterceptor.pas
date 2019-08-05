@@ -30,6 +30,8 @@ type
 
     procedure Proxify(AInstance: TObject);
     procedure Unproxify(AInstance: TObject);
+
+    function GetProxiClassOfOriginal(AnOriginal: TClass): TClass;
   end;
 
 
@@ -78,6 +80,23 @@ begin
       result.OnAfter := self.OnAfter;
       result.OnException := self.OnException;
       fInterceptors.Add(AClass.ClassName, result);
+    end;
+  finally
+    Unlock;
+  end;
+end;
+
+function TMethodsInterceptor.GetProxiClassOfOriginal(
+  AnOriginal: TClass): TClass;
+var
+  ic: TVirtualMethodInterceptor;
+begin
+  result := nil;
+  Lock;
+  try
+    for ic in fInterceptors.Values do begin
+      if ic.OriginalClass=AnOriginal then
+        exit(ic.ProxyClass);
     end;
   finally
     Unlock;
