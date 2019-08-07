@@ -32,6 +32,7 @@ type
   IAllureFixtureResultAction = interface;
   IAllureTestResultAction = interface;
   IAllureStepResultAction = interface;
+  IAllureEnvironment = interface;
 
   TAllureString = WideString;
   TAllureBoolean = WordBool;
@@ -233,12 +234,9 @@ type
     procedure SetName(const Value: TAllureString); safecall;
     function GetValue: TAllureString; safecall;
     procedure SetValue(const AValue: TAllureString); safecall;
-//    function GetKind: TAllureParameterKind; safecall;
-//    procedure SetKind(Value: TAllureParameterKind); safecall;
 
     property Name: TAllureString read GetName write SetName;
     property Value: TAllureString read GetValue write SetValue;
-//    property Kind: TAllureParameterKind read GetKind write SetKind;
   end;
 
   IAllureParameters = interface
@@ -248,6 +246,8 @@ type
 
     property Parameter[Index: Integer]: IAllureParameter read GetParameter; default;
     property ParameterCount: Integer read GetParameterCount;
+
+    function AddNew: IAllureParameter; safecall;
   end;
 
   IAllureAttachment = interface
@@ -594,8 +594,8 @@ type
 
     // Extensions
     procedure CleanupResultDirectory(); safecall;
-//    function AddScreenDiff(const TestCaseUuid, ExpectedPng, ActualPng, DiffPng: TAllureString): IAllureLifecycle; safecall;
 
+    function Environment: IAllureEnvironment; safecall;
   end;
 
   IAllureTestResultContainerAction = interface
@@ -616,6 +616,12 @@ type
   IAllureStepResultAction = interface
   ['{09A15B55-F558-41B7-AE07-BF973765CD4F}']
     procedure Invoke(const StepResult: IAllureStepResult); safecall;
+  end;
+
+  IAllureEnvironment = interface
+  ['{D7BBBC62-1587-4615-9F3A-00ED5E668950}']
+    procedure AddProperty(const AKey, AValue: TAllureString); safecall;
+    procedure Flush; safecall;
   end;
 
 implementation

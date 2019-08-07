@@ -29,22 +29,34 @@ type
 
   DescriptionAttribute = class(TOneStringValueAttribute);
 
-  IssueAttribute = class(TOneStringValueAttribute);
-  TmsLinkAttribute = class(TOneStringValueAttribute);
-
-  LinkAttribute = class(TCustomAttribute)
-  private
+  TAllureLinkAttribute = class(TCustomAttribute)
+  protected
     fLinkType: string;
     fName: string;
     fUrl: string;
   public
-    constructor Create(const AUrl: string); overload;
-    constructor Create(const AUrl, AName: string); overload;
-    constructor Create(const AUrl, AName, AType: string); overload;
-
     property Url: string read fUrl;
     property Name: string read fName;
     property LinkType: string read fLinkType;
+  end;
+
+  LinkAttribute = class(TAllureLinkAttribute)
+  public
+    constructor Create(const AUrl: string); overload;
+    constructor Create(const AUrl, AName: string); overload;
+    constructor Create(const AUrl, AName, AType: string); overload;
+  end;
+
+  IssueAttribute = class(TAllureLinkAttribute)
+  public
+    constructor Create(const AName: string); overload;
+    constructor Create(const AName, AUrl: string); overload;
+  end;
+
+  TmsLinkAttribute = class(TAllureLinkAttribute)
+  public
+    constructor Create(const AName: string); overload;
+    constructor Create(const AName, AUrl: string); overload;
   end;
 
   SeverityAttribute = class(TCustomAttribute)
@@ -59,6 +71,10 @@ type
   EpicAttribute = class(TOneStringValueAttribute);
   FeatureAttribute = class(TOneStringValueAttribute);
   StoryAttribute = class(TOneStringValueAttribute);
+
+  FlakyAttribute = class(TCustomAttribute);
+  MutedAttribute = class(TCustomAttribute);
+  KnownAttribute = class(TCustomAttribute);
 
 implementation
 
@@ -112,6 +128,40 @@ constructor SeverityAttribute.Create(const ASeverity: TAllureSeverityLevel);
 begin
   inherited Create;
   fSeverity := ASeverity;
+end;
+
+{ IssueAttribute }
+
+constructor IssueAttribute.Create(const AName, AUrl: string);
+begin
+  inherited Create;
+  fUrl := AUrl;
+  fLinkType := 'issue';
+  fName := AName;
+end;
+
+constructor IssueAttribute.Create(const AName: string);
+begin
+  inherited Create;
+  fName := AName;
+  fLinkType := 'issue';
+end;
+
+{ TmsLinkAttribute }
+
+constructor TmsLinkAttribute.Create(const AName, AUrl: string);
+begin
+  inherited Create;
+  fUrl := AUrl;
+  fLinkType := 'tms';
+  fName := AName;
+end;
+
+constructor TmsLinkAttribute.Create(const AName: string);
+begin
+  inherited Create;
+  fName := AName;
+  fLinkType := 'tms';
 end;
 
 end.

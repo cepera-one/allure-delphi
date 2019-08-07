@@ -8,7 +8,7 @@ uses
 
 type
 
-  [TestFixture]
+  [TestFixture('Tests of the DUnitX logger to the allure format')]
   TAllureDUnitXLoggerTests = class(TObject)
   public
     constructor Create;
@@ -25,20 +25,38 @@ type
     [TearDown]
     procedure TearDown; virtual;
 
-    [Step]
-    procedure MakeStep(Index: Integer); virtual;
+    [Step('It is a MakeStep(Index: Integer) function')]
+    function MakeStep(Index: Integer): string; virtual;
 
     [Test]
+    [Description('This test just should check success case')]
     procedure ShouldPass; virtual;
 
     [Test]
+    [Issue('SC-5348')]
+    [Issue('972', 'https://github.com/allure-framework/allure2/issues/972')]
+    [Link('http://allure.qatools.ru', 'Allure overview')]
+    [Flaky]
+    [Muted]
+    [Known]
     procedure ShouldFail; virtual;
 
     [Test]
+    [Severity(aslCritical)]
+    [Epic('AllureDUnitXLogger')]
+    [Feature('Attributes testing')]
+    [Story('Check for behaviors attributes')]
     procedure ShouldBeBroken; virtual;
 
     [Test]
+    [Ignore('Reason is to test ignore case')]
+    procedure ShouldBeIgnored; virtual;
+
+    [Test]
     procedure ShouldMake3SubSteps; virtual;
+
+    [Test]
+    procedure ShouldAddAttachments; virtual;
 
     [Test]
     procedure ShouldMakeAllureServe; virtual;
@@ -59,10 +77,11 @@ begin
   inherited;
 end;
 
-procedure TAllureDUnitXLoggerTests.MakeStep(Index: Integer);
+function TAllureDUnitXLoggerTests.MakeStep(Index: Integer): string;
 begin
-  if Index=1 then
+  if Index=2 then
     Assert.Fail('Incorrect index');
+  result := 'res_' + IntToStr(Index);
 end;
 
 procedure TAllureDUnitXLoggerTests.Setup;
@@ -75,9 +94,36 @@ begin
   //raise Exception.Create('check broken fixture case');
 end;
 
+procedure TAllureDUnitXLoggerTests.ShouldAddAttachments;
+begin
+  Allure.AddAttachment('.\..\..\..\TestData\WeldingBox.png');
+  Allure.AddAttachmentText('Some text: ',
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10 +
+      'Just some long text' + #13#10
+  );
+end;
+
 procedure TAllureDUnitXLoggerTests.ShouldBeBroken;
 begin
   raise Exception.Create('check broken case');
+end;
+
+procedure TAllureDUnitXLoggerTests.ShouldBeIgnored;
+begin
+
 end;
 
 procedure TAllureDUnitXLoggerTests.ShouldFail;

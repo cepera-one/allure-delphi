@@ -4,7 +4,7 @@ interface
 
 uses
   allureDelphiInterface, Winapi.Windows, System.SysUtils, System.DateUtils,
-  System.Hash;
+  System.Hash, Winapi.ActiveX;
 
 type
 
@@ -80,6 +80,14 @@ type
     procedure UpdateStep(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateStepProc); overload;
     procedure UpdateFixture(UpdateProc: TAllureUpdateActionHelper.TUpdateFixtureProc); overload;
     procedure UpdateFixture(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateFixtureProc); overload;
+
+    procedure AddAttachment(const Name, AType, FileExtension: String; const Stream: IStream); overload;
+    procedure AddAttachment(const Name, AType, Path: String); overload;
+    procedure AddAttachment(const Name, AType: String; Content: Pointer; Size: UInt64; const FileExtension: String = ''); overload;
+    procedure AddAttachment(const Name, AType: String; const Content: TBytes; const FileExtension: String = ''); overload;
+    procedure AddAttachment(const Path: String; const Name: String = ''); overload;
+    procedure AddAttachmentText(const Name, AValue: String);
+
   end;
 
 var
@@ -88,6 +96,39 @@ var
 implementation
 
 { TAllureHelper }
+
+procedure TAllureHelper.AddAttachment(const Name, AType: String;
+  Content: Pointer; Size: UInt64; const FileExtension: String);
+begin
+  Lifecycle.AddAttachment(Name, AType, Content, Size, FileExtension);
+end;
+
+procedure TAllureHelper.AddAttachment(const Name, AType, Path: String);
+begin
+  Lifecycle.AddAttachment(Name, AType, Path);
+end;
+
+procedure TAllureHelper.AddAttachment(const Name, AType, FileExtension: String;
+  const Stream: IStream);
+begin
+  Lifecycle.AddAttachment(Name, AType, FileExtension, Stream);
+end;
+
+procedure TAllureHelper.AddAttachment(const Path, Name: String);
+begin
+  Lifecycle.AddAttachment(Path, Name);
+end;
+
+procedure TAllureHelper.AddAttachment(const Name, AType: String;
+  const Content: TBytes; const FileExtension: String);
+begin
+  Lifecycle.AddAttachment(Name, AType, @Content[0], Length(Content), FileExtension);
+end;
+
+procedure TAllureHelper.AddAttachmentText(const Name, AValue: String);
+begin
+  AddAttachment(Name, TMimeTypesMap.PlainText, TEncoding.UTF8.GetBytes(AValue));
+end;
 
 procedure TAllureHelper.Clear;
 begin

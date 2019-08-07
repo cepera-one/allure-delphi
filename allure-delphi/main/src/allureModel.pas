@@ -122,6 +122,8 @@ type
 
     property Parameter[Index: Integer]: IAllureParameter read GetParameter; default;
     property ParameterCount: Integer read GetParameterCount;
+
+    function AddNew: IAllureParameter; safecall;
   end;
 
   TAllureAttachment = class(TAllureInterfacedObject, IAllureAttachment)
@@ -464,6 +466,16 @@ type
     property Tag: TAllureTag read GetTag write SetTag;
   end;
 
+  TAllureEnvironment = class(TAllureInterfacedObject, IAllureEnvironment)
+  private
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure AddProperty(const AKey, AValue: TAllureString); safecall;
+    procedure Flush; safecall;
+  end;
+
   TAllureLinkHelper = record
     class procedure UpdateLinks(const Links: IAllureLinkList; const Patterns: IAllureStringSet); static;
   end;
@@ -789,6 +801,15 @@ begin
 end;
 
 { TAllureParameters }
+
+function TAllureParameters.AddNew: IAllureParameter;
+var
+  res: TAllureParameter;
+begin
+  res := TAllureParameter.Create;
+  fList.Add(res);
+  result := res;
+end;
 
 constructor TAllureParameters.Create;
 begin
