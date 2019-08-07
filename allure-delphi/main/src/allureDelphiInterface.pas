@@ -620,7 +620,9 @@ type
 
   IAllureEnvironment = interface
   ['{D7BBBC62-1587-4615-9F3A-00ED5E668950}']
-    procedure AddProperty(const AKey, AValue: TAllureString); safecall;
+    function GetProperty(const AKey: TAllureString): TAllureString; safecall;
+    procedure SetProperty(const AKey, AValue: TAllureString); safecall;
+    property Properties[const AKey: TAllureString]: TAllureString read GetProperty write SetProperty; default;
     procedure Flush; safecall;
   end;
 

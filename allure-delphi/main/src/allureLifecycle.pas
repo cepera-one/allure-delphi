@@ -237,6 +237,8 @@ type
 
     // Extensions
     procedure CleanupResultDirectory(); safecall;
+
+    function Environment: IAllureEnvironment; safecall;
   end;
 
   function GetAllureLifecycle: IAllureLifecycle; safecall;
@@ -441,6 +443,11 @@ begin
     fLifecycle := nil;
   except
   end;
+end;
+
+function TAllureLifecycle.Environment: IAllureEnvironment;
+begin
+  result := TAllureEnvironment.Create(ResultsDirectory + '\environment.properties');
 end;
 
 class procedure TAllureLifecycle.FreeLifecycle;

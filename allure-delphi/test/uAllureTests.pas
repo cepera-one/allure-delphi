@@ -60,6 +60,9 @@ type
     [Test]
     procedure ShouldAddAttachments;
 
+    [Test]
+    procedure ShouldCreateEnvironment;
+
     // Test with TestCase Attribute to supply parameters.
 //    [Test]
 //    [TestCase('TestA','1,2')]
@@ -283,6 +286,21 @@ begin
   fn := Allure.Lifecycle.ResultsDirectory + '\' + c.UUID + '-container.json';
   if not FileExists(fn) then
     Assert.Fail('Child test result container not created');
+end;
+
+procedure TAllureDelphiTests.ShouldCreateEnvironment;
+var
+  env: IAllureEnvironment;
+begin
+  Assert.IsNotNull(Allure.Lifecycle);
+  env := Allure.Lifecycle.Environment;
+  env.Properties['Language'] := 'Delphi';
+  env.Properties['CompilerVersion'] := FloatToStr(System.CompilerVersion);
+  env := nil;
+  env := Allure.Lifecycle.Environment;
+  Assert.AreEqual(env['Language'], 'Delphi', true);
+  Assert.AreEqual(env['CompilerVersion'], FloatToStr(System.CompilerVersion), true);
+  env := nil;
 end;
 
 procedure TAllureDelphiTests.ShouldCreateTest;

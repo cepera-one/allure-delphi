@@ -468,11 +468,16 @@ type
 
   TAllureEnvironment = class(TAllureInterfacedObject, IAllureEnvironment)
   private
+    fList: TStringList;
+    fFileName: string;
+    procedure LoadValues;
   public
-    constructor Create;
+    constructor Create(const FileName: string);
     destructor Destroy; override;
 
-    procedure AddProperty(const AKey, AValue: TAllureString); safecall;
+    function GetProperty(const AKey: TAllureString): TAllureString; safecall;
+    procedure SetProperty(const AKey, AValue: TAllureString); safecall;
+    property Properties[const AKey: TAllureString]: TAllureString read GetProperty write SetProperty; default;
     procedure Flush; safecall;
   end;
 
@@ -1481,6 +1486,7 @@ const
     pt: TAllureString;
   begin
     tg := '';
+    result := -1;
     if Tag='' then exit;
     tg := '{' + AnsiLowerCase(Tag) + '}';
     for j := 0 to Patterns.Count-1 do begin
@@ -1502,6 +1508,56 @@ begin
     if j>=0 then
       Links.Link[i].Url := ReplaceText(Patterns.Value[j], tg, Links.Link[i].Name)
   end;
+end;
+
+{ TAllureEnvironment }
+constructor TAllureEnvironment.Create(const FileName: string);
+begin
+  inherited Create;
+  SelfIncrement := false;
+  fFileName := FileName;
+  fList := TStringList.Create;
+  fList.NameValueSeparator := '=';
+  fList.CaseSensitive := false;
+  fList.Duplicates := dupAccept;
+  LoadValues;
+end;
+
+destructor TAllureEnvironment.Destroy;
+begin
+  Flush;
+  fList.Free;
+  inherited;
+end;
+
+procedure TAllureEnvironment.Flush;
+begin
+  try
+    fList.SaveToFile(fFileName, TEncoding.UTF8);
+  except
+  end;
+end;
+
+function TAllureEnvironment.GetProperty(
+  const AKey: TAllureString): TAllureString;
+begin
+  result := fList.Values[AKey];
+end;
+
+procedure TAllureEnvironment.LoadValues;
+begin
+  if FileExists(fFileName) then begin
+    try
+      fList.LoadFromFile(fFileName, TEncoding.UTF8);
+    except
+    end;
+  end else
+    fList.Clear;
+end;
+
+procedure TAllureEnvironment.SetProperty(const AKey, AValue: TAllureString);
+begin
+  fList.Values[AKey] := AValue;
 end;
 
 end.
