@@ -16,7 +16,7 @@ uses
   allureDelphiHelper in '..\..\allure-delphi\main\src\allureDelphiHelper.pas',
   allureDelphiInterface in '..\..\allure-delphi\main\src\allureDelphiInterface.pas',
   MethodsInterceptor in '..\main\MethodsInterceptor.pas',
-  allureAttributes in '..\main\allureAttributes.pas';
+  allureAttributes in '..\..\allure-delphi\main\src\allureAttributes.pas';
 
 var
   runner : ITestRunner;

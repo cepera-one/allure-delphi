@@ -12,6 +12,9 @@
         <Projects Include="allure-DUnitX\test\AllureDUnitXLoggerTest.dproj">
             <Dependencies/>
         </Projects>
+        <Projects Include="allure-pure-delphi\test\allurePureDelphiTest.dproj">
+            <Dependencies/>
+        </Projects>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
@@ -47,14 +50,23 @@
     <Target Name="AllureDUnitXLoggerTest:Make">
         <MSBuild Projects="allure-DUnitX\test\AllureDUnitXLoggerTest.dproj" Targets="Make"/>
     </Target>
+    <Target Name="allurePureDelphiTest">
+        <MSBuild Projects="allure-pure-delphi\test\allurePureDelphiTest.dproj"/>
+    </Target>
+    <Target Name="allurePureDelphiTest:Clean">
+        <MSBuild Projects="allure-pure-delphi\test\allurePureDelphiTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="allurePureDelphiTest:Make">
+        <MSBuild Projects="allure-pure-delphi\test\allurePureDelphiTest.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="AllureDelphi;AllureDelphiTest;AllureDUnitXLoggerTest"/>
+        <CallTarget Targets="AllureDelphi;AllureDelphiTest;AllureDUnitXLoggerTest;allurePureDelphiTest"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="AllureDelphi:Clean;AllureDelphiTest:Clean;AllureDUnitXLoggerTest:Clean"/>
+        <CallTarget Targets="AllureDelphi:Clean;AllureDelphiTest:Clean;AllureDUnitXLoggerTest:Clean;allurePureDelphiTest:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="AllureDelphi:Make;AllureDelphiTest:Make;AllureDUnitXLoggerTest:Make"/>
+        <CallTarget Targets="AllureDelphi:Make;AllureDelphiTest:Make;AllureDUnitXLoggerTest:Make;allurePureDelphiTest:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
