@@ -5,29 +5,44 @@ interface
 type
   TPureTestsContext = class;
 
+  IPureTestsListener = interface
+  ['{1475065F-D02F-48BA-8E1E-DEBEFB090652}']
+  end;
+
   TPureTestFixture<TFix> = class
   public type
     TPureFixtureProc = reference to procedure;//(Fixture: TPureTestFixture<TFix>);
 
     TPureTest<T> = class
-    private
-      fPrevTest: TPureTest<T>;
     public type
       TPureTestExecuteProc = reference to procedure;//(Test: TPureTest<T>);
 
       TPureTestStep = class
       public
-        constructor Create(ATest: TPureTest<T>; const Name: string; const Description: string = '');
+        Name: string;
+        Description: string;
+        Test: TPureTest<T>;
+      public
+        constructor Create(ATest: TPureTest<T>; const AName: string; const ADescription: string = '');
 
 
         procedure EndStep;
       end;
 
+      TSteps = TArray<TPureTestStep>;
+    private
+      fSteps: TSteps;
+
+      procedure PushStep(AStep: TPureTestStep);
+      function PopStep: TPureTestStep;
+      function PeekStep: TPureTestStep;
     public
-      TestData: T;
+      Name: string;
+      Description: string;
+      Data: T;
+      Fixture: TPureTestFixture<TFix>;
     public
-      constructor Create(AFixture: TPureTestFixture<TFix>; const Name: string; const Description: string = '');
-      destructor Destroy; override;
+      constructor Create(AFixture: TPureTestFixture<TFix>; const AName: string; const ADescription: string = '');
 
       procedure Execute(TestBodyProc: TPureTestExecuteProc);
 
@@ -35,17 +50,18 @@ type
 
       procedure EndStep;
 
-      procedure EndTest;
+      destructor EndTest;
     end;
 
-    TPureTest = class(TPureTest<Pointer>);
+    TPureTest = TPureTest<Pointer>;
 
   public
-    FixtureData: TFix;
-    fFirstTest, fLastTest: Pointer;//TPureTest<T>;
+    Name: string;
+    Description: string;
+    Data: TFix;
+    Context: TPureTestsContext;
   public
-    constructor Create(AContext: TPureTestsContext; const Name: string; const Description: string = '');
-    destructor Destroy; override;
+    constructor Create(AContext: TPureTestsContext; const AName: string; const ADescription: string = '');
 
     procedure Setup(SetupProc: TPureFixtureProc);
     procedure TearDown(TearDownProc: TPureFixtureProc);
@@ -53,16 +69,24 @@ type
     function BeginTest<T>(const Name: string; const Description: string = ''): TPureTest<T>; overload;
     function BeginTest(const Name: string; const Description: string = ''): TPureTest; overload;
 
-    procedure EndTest;
-    procedure EndTestFixture;
+    destructor EndTestFixture; overload;
+    destructor EndTestFixture(TearDownProc: TPureFixtureProc); overload;
   end;
 
-  TPureTestFixture = class(TPureTestFixture<Pointer>);
+  TPureTestFixture = TPureTestFixture<Pointer>;
+
+  TTestProcedure = reference to procedure;
 
   TPureTestsContext = class
+  private
+    fListener: IPureTestsListener;
   public
     constructor Create;
     destructor Destroy; override;
+
+    procedure AddListener(const AListener: IPureTestsListener);
+
+    class procedure RegTestProc(AProc: TTestProcedure); static;
 
     function BeginTestFixture<TFix>(const Name: string; const Description: string = ''): TPureTestFixture<TFix>; overload;
     function BeginTestFixture(const Name: string; const Description: string = ''): TPureTestFixture; overload;
@@ -90,46 +114,42 @@ begin
   context := TPureTestsContext.Create;
   try
     fixture := context.BeginTestFixture<TFixData>('SampleFixture');
+    fixture.Setup(
+      procedure
+      begin
+        Fixture.Data.A := 10;
+        Fixture.Data.B := 'sample';
+      end
+    );
     try
-      fixture.Setup(
-        procedure
-        begin
-          Fixture.FixtureData.A := 10;
-          Fixture.FixtureData.B := 'sample';
-        end
-      );
+      test1 := fixture.BeginTest<TTest1Data>('Test1');
       try
-        test1 := fixture.BeginTest<TTest1Data>('Test1');
-        try
-          test1.Execute(
-            procedure
-            begin
-              with test1.BeginStep('SetupTest1') do begin
-
-
-                EndStep;
-              end;
-            end
-          );
-        finally
-          test1.EndTest;
-        end;
-      finally
-        fixture.TearDown(
+        test1.Execute(
           procedure
           begin
-            Fixture.FixtureData.A := 0;
-            Fixture.FixtureData.B := '';
+            with test1.BeginStep('SetupTest1') do begin
+
+
+              EndStep;
+            end;
           end
         );
+      finally
+        test1.EndTest;
       end;
     finally
-      fixture.Free;
+      fixture.EndTestFixture(
+        procedure
+        begin
+          Fixture.Data.A := 0;
+          Fixture.Data.B := '';
+        end
+      );
     end;
 
     fixture2 := context.BeginTestFixture('Fixture2');
     try
-      fixture2.BeginTest('Test2');
+      test2 := fixture2.BeginTest('Test2');
       try
         test2.Execute(
           procedure
@@ -138,12 +158,12 @@ begin
             try
 
             finally
+              test2.EndStep;
             end;
-            test2.EndStep;
           end
         );
       finally
-        fixture2.EndTest;
+        test2.EndTest;
       end;
     finally
       fixture2.EndTestFixture;
@@ -154,6 +174,11 @@ begin
 end;
 
 { TPureTestsContext }
+
+procedure TPureTestsContext.AddListener(const AListener: IPureTestsListener);
+begin
+
+end;
 
 function TPureTestsContext.BeginTestFixture(const Name,
   Description: string): TPureTestFixture;
@@ -178,6 +203,11 @@ begin
   inherited;
 end;
 
+class procedure TPureTestsContext.RegTestProc(AProc: TTestProcedure);
+begin
+
+end;
+
 { TPureTestFixture<TFix> }
 
 function TPureTestFixture<TFix>.BeginTest(const Name,
@@ -193,23 +223,17 @@ begin
 end;
 
 constructor TPureTestFixture<TFix>.Create(AContext: TPureTestsContext;
-  const Name, Description: string);
+  const AName, ADescription: string);
 begin
 
 end;
 
-destructor TPureTestFixture<TFix>.Destroy;
-begin
-
-  inherited;
-end;
-
-procedure TPureTestFixture<TFix>.EndTest;
+destructor TPureTestFixture<TFix>.EndTestFixture(TearDownProc: TPureFixtureProc);
 begin
 
 end;
 
-procedure TPureTestFixture<TFix>.EndTestFixture;
+destructor TPureTestFixture<TFix>.EndTestFixture;
 begin
 
 end;
@@ -233,15 +257,9 @@ begin
 end;
 
 constructor TPureTestFixture<TFix>.TPureTest<T>.Create(
-  AFixture: TPureTestFixture<TFix>; const Name, Description: string);
+  AFixture: TPureTestFixture<TFix>; const AName, ADescription: string);
 begin
 
-end;
-
-destructor TPureTestFixture<TFix>.TPureTest<T>.Destroy;
-begin
-
-  inherited;
 end;
 
 procedure TPureTestFixture<TFix>.TPureTest<T>.EndStep;
@@ -249,7 +267,7 @@ begin
 
 end;
 
-procedure TPureTestFixture<TFix>.TPureTest<T>.EndTest;
+destructor TPureTestFixture<TFix>.TPureTest<T>.EndTest;
 begin
 
 end;
@@ -260,10 +278,25 @@ begin
 
 end;
 
+function TPureTestFixture<TFix>.TPureTest<T>.PeekStep: TPureTestStep;
+begin
+
+end;
+
+function TPureTestFixture<TFix>.TPureTest<T>.PopStep: TPureTestStep;
+begin
+
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.PushStep(AStep: TPureTestStep);
+begin
+
+end;
+
 { TPureTestFixture<TFix>.TPureTest<T>.TPureTestStep }
 
 constructor TPureTestFixture<TFix>.TPureTest<T>.TPureTestStep.Create(
-  ATest: TPureTest<T>; const Name, Description: string);
+  ATest: TPureTest<T>; const AName, ADescription: string);
 begin
 
 end;
@@ -273,4 +306,6 @@ begin
 
 end;
 
+initialization
+  MakeTest;
 end.
