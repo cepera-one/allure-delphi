@@ -2,31 +2,117 @@ unit pureTestFramework;
 
 interface
 
-type
-  TPureTestsContext = class;
+uses
+  System.SysUtils;
 
-  IPureTestsListener = interface
-  ['{1475065F-D02F-48BA-8E1E-DEBEFB090652}']
+type
+  TPureTests = class;
+  TPureTestsListeners = class;
+  IPureTestsListener = interface;
+
+  TPureTestStatus = (
+    ptsNone,
+    ptsFailed,
+    ptsBroken,
+    ptsPassed,
+    ptsSkipped
+  );
+
+  TPureTestStatusDetails = record
+    Msg: string;
   end;
 
-  TPureTestFixture<TFix> = class
+  TPureTestsRunResults = record
+    FailedTestCount: Integer;
+    BrokenTestCount: Integer;
+    PassedTestCount: Integer;
+    SkippedTestCount: Integer;
+    TotalTestCount: Integer;
+    FixtureCount: Integer;
+    procedure Clear;
+  end;
+
+  IPureTestObject = interface
+  ['{9DC81A13-5EA5-4895-9152-D4F8520B2BF4}']
+    function GetName: string;
+    function GetDescription: string;
+    function GetStartTime: TDateTime;
+    function GetEndTime: TDateTime;
+    function GetStatus: TPureTestStatus;
+    function GetDetails: TPureTestStatusDetails;
+
+    property Name: string read GetName;
+    property Description: string read GetDescription;
+    property StartTime: TDateTime read GetStartTime;
+    property EndTime: TDateTime read GetEndTime;
+    property Status: TPureTestStatus read GetStatus;
+    property Details: TPureTestStatusDetails read GetDetails;
+  end;
+
+  IPureTestsContext = interface
+  ['{7846F04A-2FE6-41EE-8AAC-461966E4FE6E}']
+    function GetRunResults: TPureTestsRunResults;
+    property RunResults: TPureTestsRunResults read GetRunResults;
+  end;
+
+  IPureTestFixture = interface(IPureTestObject)
+  ['{A9A079AB-BED7-451C-B7B5-32F6F223D653}']
+    function GetContext: IPureTestsContext;
+    property Context: IPureTestsContext read GetContext;
+  end;
+
+  IPureTest = interface(IPureTestObject)
+  ['{FFE64288-E6B2-4230-8262-EF467A68A604}']
+    function GetFixture: IPureTestFixture;
+    property Fixture: IPureTestFixture read GetFixture;
+  end;
+
+  IPureTestStep = interface(IPureTestObject)
+  ['{E59BC6A6-5FF9-4D1F-9D5F-E08E86DE679B}']
+    function GetTest: IPureTest;
+    property Test: IPureTest read GetTest;
+  end;
+
+  TPureTestObject = class(TInterfacedObject, IPureTestObject)
+  private
+    fName: string;
+    fDescription: string;
+    fStartTime: TDateTime;
+    fEndTime: TDateTime;
+    fStatus: TPureTestStatus;
+    fDetails: TPureTestStatusDetails;
+
+    function GetName: string;
+    function GetDescription: string;
+    function GetStartTime: TDateTime;
+    function GetEndTime: TDateTime;
+    function GetStatus: TPureTestStatus;
+    function GetDetails: TPureTestStatusDetails;
+  public
+    property Name: string read GetName;
+    property Description: string read GetDescription;
+    property StartTime: TDateTime read GetStartTime;
+    property EndTime: TDateTime read GetEndTime;
+    property Status: TPureTestStatus read GetStatus;
+    property Details: TPureTestStatusDetails read GetDetails;
+  end;
+
+  TPureFixtureProc = reference to procedure;
+  TPureTestExecuteProc = reference to procedure;
+
+  TPureTestFixture<TFix> = class(TPureTestObject, IPureTestFixture)
   public type
-    TPureFixtureProc = reference to procedure;//(Fixture: TPureTestFixture<TFix>);
 
-    TPureTest<T> = class
+    TPureTest<T> = class(TPureTestObject, IPureTest)
     public type
-      TPureTestExecuteProc = reference to procedure;//(Test: TPureTest<T>);
 
-      TPureTestStep = class
+      TPureTestStep = class(TPureTestObject, IPureTestStep)
       public
-        Name: string;
-        Description: string;
         Test: TPureTest<T>;
       public
         constructor Create(ATest: TPureTest<T>; const AName: string; const ADescription: string = '');
 
-
-        procedure EndStep;
+        function GetTest: IPureTest;
       end;
 
       TSteps = TArray<TPureTestStep>;
@@ -37,8 +123,6 @@ type
       function PopStep: TPureTestStep;
       function PeekStep: TPureTestStep;
     public
-      Name: string;
-      Description: string;
       Data: T;
       Fixture: TPureTestFixture<TFix>;
     public
@@ -51,17 +135,17 @@ type
       procedure EndStep;
 
       destructor EndTest;
+
+      function GetFixture: IPureTestFixture;
     end;
 
     TPureTest = TPureTest<Pointer>;
 
   public
-    Name: string;
-    Description: string;
     Data: TFix;
-    Context: TPureTestsContext;
+    Context: TPureTests;
   public
-    constructor Create(AContext: TPureTestsContext; const AName: string; const ADescription: string = '');
+    constructor Create(AContext: TPureTests; const AName: string; const ADescription: string = '');
 
     procedure Setup(SetupProc: TPureFixtureProc);
     procedure TearDown(TearDownProc: TPureFixtureProc);
@@ -71,26 +155,149 @@ type
 
     destructor EndTestFixture; overload;
     destructor EndTestFixture(TearDownProc: TPureFixtureProc); overload;
+
+    function GetContext: IPureTestsContext;
   end;
 
   TPureTestFixture = TPureTestFixture<Pointer>;
 
   TTestProcedure = reference to procedure;
 
-  TPureTestsContext = class
+  IPureTestsFilter = interface
+  ['{FE8D59F6-E47A-4F05-BA15-0471BFCCA004}']
+    function TestMatch(const Test: IPureTest): Boolean;
+    function FixtureMatch(const Fixture: IPureTestFixture): Boolean;
+  end;
+
+  TPureTests = class(TInterfacedObject, IPureTestsContext)
+  private class var
+    fContext: TPureTests;
   private
-    fListener: IPureTestsListener;
+    fListeners: TPureTestsListeners;
+    fTestProcs: TArray<TTestProcedure>;
+    fFilter: IPureTestsFilter;
+    fRunResults: TPureTestsRunResults;
+    function GetListeners: TPureTestsListeners;
+    class function GetContext: TPureTests; static;
+    procedure ExecuteTest<TFix, T>(Test: TPureTestFixture<TFix>.TPureTest<T>; TestBodyProc: TPureTestExecuteProc);
+    procedure SetupFixture<TFix>(Fixture: TPureTestFixture<TFix>; SetupProc: TPureFixtureProc);
+    procedure TearDownFixture<TFix>(Fixture: TPureTestFixture<TFix>; TearDownProc: TPureFixtureProc);
+  public
+    class property Context: TPureTests read GetContext;
+  public
+    function GetRunResults: TPureTestsRunResults;
+    property RunResults: TPureTestsRunResults read GetRunResults;
   public
     constructor Create;
     destructor Destroy; override;
 
-    procedure AddListener(const AListener: IPureTestsListener);
+    procedure Initialize;
+    procedure Finalize;
 
-    class procedure RegTestProc(AProc: TTestProcedure); static;
+    property Listeners: TPureTestsListeners read GetListeners;
+
+    procedure RegTestProc(AProc: TTestProcedure);
+
+    procedure RunAllTests(const Filter: IPureTestsFilter = nil);
 
     function BeginTestFixture<TFix>(const Name: string; const Description: string = ''): TPureTestFixture<TFix>; overload;
     function BeginTestFixture(const Name: string; const Description: string = ''): TPureTestFixture; overload;
   end;
+
+  IPureTestsListener = interface
+  ['{1475065F-D02F-48BA-8E1E-DEBEFB090652}']
+
+    // Called at the start of testing.
+    procedure OnTestingStarts(const Context: IPureTestsContext);
+
+    // Called before a Fixture is run.
+    procedure OnStartTestFixture(const Fixture: IPureTestFixture);
+
+    // Called before a fixture Setup method is run
+    procedure OnBeforeSetupFixture(const Fixture: IPureTestFixture);
+
+    // Called after a fixture setup method is run.
+    procedure OnAfterSetupFixture(const Fixture: IPureTestFixture);
+
+    // Called after a Test is created.
+    procedure OnBeginTest(const Test: IPureTest);
+
+    // Called before a Test.Execute method is run.
+    procedure OnBeforeExecuteTest(const Test: IPureTest);
+
+    // Called before a Step is run.
+    procedure OnBeforeStep(const Step: IPureTestStep);
+
+    // Called after a Step is run.
+    procedure OnAfterStep(const Step: IPureTestStep);
+
+    // Called after a Test.Execute method is run.
+    procedure OnAfterExecuteTest(const Test: IPureTest);
+
+    // Called before destroing a test.
+    procedure OnEndTest(const Test: IPureTest);
+
+    // Called before a Fixture Teardown method is called.
+    procedure OnBeforeTearDownFixture(const Fixture: IPureTestFixture);
+
+    // Called after a Fixture Teardown method is called.
+    procedure OnAfterTearDownFixture(const Fixture: IPureTestFixture);
+
+    // Called after a Fixture has run.
+    procedure OnEndTestFixture(const Fixture: IPureTestFixture);
+
+    // Called after all fixtures have run.
+    procedure OnTestingEnds(const Context: IPureTestsContext);
+
+  end;
+
+  TPureTestsListeners = class(TInterfacedObject{, IPureTestsListener})
+  private
+    type
+      TNotifyProc = reference to procedure (const AListener: IPureTestsListener);
+    var
+    fList: TArray<IPureTestsListener>;
+    procedure NotifyAll(AProc: TNotifyProc);
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure Add(const AListener: IPureTestsListener);
+
+    procedure OnTestingStarts(const Context: IPureTestsContext);
+    procedure OnStartTestFixture(const Fixture: IPureTestFixture);
+    procedure OnBeforeSetupFixture(const Fixture: IPureTestFixture);
+    procedure OnAfterSetupFixture(const Fixture: IPureTestFixture);
+    procedure OnBeginTest(const Test: IPureTest);
+    procedure OnBeforeExecuteTest(const Test: IPureTest);
+    procedure OnBeforeStep(const Step: IPureTestStep);
+    procedure OnAfterStep(const Step: IPureTestStep);
+    procedure OnAfterExecuteTest(const Test: IPureTest);
+    procedure OnEndTest(const Test: IPureTest);
+    procedure OnBeforeTearDownFixture(const Fixture: IPureTestFixture);
+    procedure OnAfterTearDownFixture(const Fixture: IPureTestFixture);
+    procedure OnEndTestFixture(const Fixture: IPureTestFixture);
+    procedure OnTestingEnds(const Context: IPureTestsContext);
+  end;
+
+  EPureTestException = class(Exception);
+  EPureTestAbort = class(EPureTestException);
+  EPureTestFailure = class(EPureTestAbort);
+  EPureTestPass = class(EPureTestAbort);
+
+  Assert = class
+  public
+    class procedure Pass(const message : string = '');
+    class procedure Fail(const message : string = ''; const errorAddrs : pointer = nil);
+    class procedure FailFmt(const message : string; const args: array of const; const errorAddrs : pointer = nil);
+
+    class procedure NotImplemented;
+
+  end;
+
+resourcestring
+  SNotImplemented = 'Not implemented';
+
 
 implementation
 
@@ -105,13 +312,13 @@ type
     D: String;
   end;
 var
-  context: TPureTestsContext;
+  context: TPureTests;
   fixture: TPureTestFixture<TFixData>;
   test1: TPureTestFixture<TFixData>.TPureTest<TTest1Data>;
   fixture2: TPureTestFixture;
   test2: TPureTestFixture.TPureTest;
 begin
-  context := TPureTestsContext.Create;
+  context := TPureTests.Context;
   try
     fixture := context.BeginTestFixture<TFixData>('SampleFixture');
     fixture.Setup(
@@ -127,11 +334,10 @@ begin
         test1.Execute(
           procedure
           begin
-            with test1.BeginStep('SetupTest1') do begin
+            test1.BeginStep('SetupTest1');
 
 
-              EndStep;
-            end;
+            test1.EndStep;
           end
         );
       finally
@@ -169,43 +375,169 @@ begin
       fixture2.EndTestFixture;
     end;
   finally
-    context.Free;
+    context.Finalize;
   end;
 end;
 
 { TPureTestsContext }
 
-procedure TPureTestsContext.AddListener(const AListener: IPureTestsListener);
-begin
-
-end;
-
-function TPureTestsContext.BeginTestFixture(const Name,
+function TPureTests.BeginTestFixture(const Name,
   Description: string): TPureTestFixture;
 begin
-
+  result := BeginTestFixture<Pointer>(Name, Description);
 end;
 
-function TPureTestsContext.BeginTestFixture<TFix>(const Name,
+function TPureTests.BeginTestFixture<TFix>(const Name,
   Description: string): TPureTestFixture<TFix>;
 begin
-
+  result := TPureTestFixture<TFix>.Create(self, Name, Description);
+  fListeners.OnStartTestFixture(result);
 end;
 
-constructor TPureTestsContext.Create;
+constructor TPureTests.Create;
 begin
-
+  inherited Create;
 end;
 
-destructor TPureTestsContext.Destroy;
+destructor TPureTests.Destroy;
 begin
 
   inherited;
 end;
 
-class procedure TPureTestsContext.RegTestProc(AProc: TTestProcedure);
+procedure TPureTests.ExecuteTest<TFix, T>(Test: TPureTestFixture<TFix>.TPureTest<T>;
+  TestBodyProc: TPureTestExecuteProc);
 begin
+  fListeners.OnBeforeExecuteTest(Test);
+  try
+    try
+      if Test.Fixture.Status=ptsBroken then begin
+        Test.fStatus := ptsBroken;
+        Test.fDetails := Test.Fixture.Details;
+      end else begin
+        if (fFilter=nil) or
+           (fFilter.FixtureMatch(Test.Fixture) and fFilter.TestMatch(Test))
+        then begin
+          Test.fStartTime := Now;
+          try
+            TestBodyProc();
+            Test.fStatus := ptsPassed;
+          finally
+            Test.fEndTime := Now;
+          end;
+        end;
+      end;
+    except
+      on E: EPureTestFailure do begin
+        Test.fStatus := ptsFailed;
+        Test.fDetails.Msg := E.Message;
+      end;
+      on E: EPureTestPass do begin
+        Test.fStatus := ptsPassed;
+        Test.fDetails.Msg := E.Message;
+      end;
+      on E: Exception do begin
+        Test.fStatus := ptsBroken;
+        Test.fDetails.Msg := E.Message;
+      end;
+    end;
+  finally
+    fListeners.OnAfterExecuteTest(Test);
+  end;
+end;
 
+procedure TPureTests.Finalize;
+begin
+  self._Release;
+end;
+
+class function TPureTests.GetContext: TPureTests;
+begin
+  if fContext=nil then begin
+    fContext := TPureTests.Create;
+    fContext.Initialize;
+  end;
+  result := fContext;
+end;
+
+function TPureTests.GetListeners: TPureTestsListeners;
+begin
+  result := fListeners;
+end;
+
+function TPureTests.GetRunResults: TPureTestsRunResults;
+begin
+  result := fRunResults;
+end;
+
+procedure TPureTests.Initialize;
+begin
+  self._AddRef;
+end;
+
+procedure TPureTests.RegTestProc(AProc: TTestProcedure);
+var
+  n: Integer;
+begin
+  n := Length(fTestProcs);
+  SetLength(fTestProcs, succ(n));
+  fTestProcs[n] := AProc;
+end;
+
+procedure TPureTests.RunAllTests(const Filter: IPureTestsFilter = nil);
+var
+  proc: TTestProcedure;
+begin
+  fFilter := Filter;
+  fRunResults.Clear;
+  for proc in fTestProcs do begin
+    try
+      proc();
+    except
+    end;
+  end;
+end;
+
+procedure TPureTests.SetupFixture<TFix>(Fixture: TPureTestFixture<TFix>;
+  SetupProc: TPureFixtureProc);
+begin
+  fListeners.OnBeforeSetupFixture(Fixture);
+  try
+    try
+      if (fFilter=nil) or fFilter.FixtureMatch(Fixture) then begin
+        SetupProc();
+      end;
+    except
+      on E: Exception do begin
+        Fixture.fStatus := ptsBroken;
+        Fixture.fDetails.Msg := E.Message;
+      end;
+    end;
+  finally
+    fListeners.OnAfterSetupFixture(Fixture);
+  end;
+end;
+
+procedure TPureTests.TearDownFixture<TFix>(
+  Fixture: TPureTestFixture<TFix>; TearDownProc: TPureFixtureProc);
+begin
+  fListeners.OnBeforeTearDownFixture(Fixture);
+  try
+    try
+      if (Fixture.Status<>ptsBroken) and
+         ((fFilter=nil) or fFilter.FixtureMatch(Fixture))
+      then begin
+        TearDownProc();
+      end;
+    except
+      on E: Exception do begin
+        Fixture.fStatus := ptsBroken;
+        Fixture.fDetails.Msg := E.Message;
+      end;
+    end;
+  finally
+    fListeners.OnAfterTearDownFixture(Fixture);
+  end;
 end;
 
 { TPureTestFixture<TFix> }
@@ -213,39 +545,53 @@ end;
 function TPureTestFixture<TFix>.BeginTest(const Name,
   Description: string): TPureTest;
 begin
-
+  result := BeginTest<Pointer>(Name, Description);
 end;
 
 function TPureTestFixture<TFix>.BeginTest<T>(const Name,
   Description: string): TPureTest<T>;
 begin
-
+  result := TPureTest<T>.Create(self, Name, Description);
+  Context.fListeners.OnBeginTest(result);
 end;
 
-constructor TPureTestFixture<TFix>.Create(AContext: TPureTestsContext;
+constructor TPureTestFixture<TFix>.Create(AContext: TPureTests;
   const AName, ADescription: string);
 begin
-
+  inherited Create;
+  Context := AContext;
+  fName := AName;
+  fDescription := ADescription;
+  fStartTime := Now;
 end;
 
 destructor TPureTestFixture<TFix>.EndTestFixture(TearDownProc: TPureFixtureProc);
 begin
+  TearDown(TearDownProc);
+  EndTestFixture;
+end;
 
+function TPureTestFixture<TFix>.GetContext: IPureTestsContext;
+begin
+  result := Context;
 end;
 
 destructor TPureTestFixture<TFix>.EndTestFixture;
 begin
-
+  fEndTime := Now;
+  inc(Context.fRunResults.FixtureCount);
+  Context.fListeners.OnEndTestFixture(self);
+  inherited Destroy;
 end;
 
 procedure TPureTestFixture<TFix>.Setup(SetupProc: TPureFixtureProc);
 begin
-
+  Context.SetupFixture<TFix>(self, SetupProc);
 end;
 
 procedure TPureTestFixture<TFix>.TearDown(TearDownProc: TPureFixtureProc);
 begin
-
+  Context.TearDownFixture<TFix>(self, TearDownProc);
 end;
 
 { TPureTestFixture<TFix>.TPureTest<T> }
@@ -253,44 +599,92 @@ end;
 function TPureTestFixture<TFix>.TPureTest<T>.BeginStep(const Name,
   Description: string): TPureTestStep;
 begin
-
+  PushStep(TPureTestStep.Create(self, Name, Description));
+  result := PeekStep;
+  Fixture.Context.fListeners.OnBeforeStep(result);
 end;
 
 constructor TPureTestFixture<TFix>.TPureTest<T>.Create(
   AFixture: TPureTestFixture<TFix>; const AName, ADescription: string);
 begin
-
+  inherited Create;
+  Fixture := AFixture;
+  fName := AName;
+  fDescription := ADescription;
 end;
 
 procedure TPureTestFixture<TFix>.TPureTest<T>.EndStep;
+var
+  step: TPureTestStep;
 begin
-
+  step := PopStep;
+  if step<>nil then begin
+    step.fEndTime := Now;
+    Fixture.Context.fListeners.OnAfterStep(step);
+    step.Free;
+  end;
 end;
 
 destructor TPureTestFixture<TFix>.TPureTest<T>.EndTest;
+var
+  step: TPureTestStep;
 begin
-
+  inc(Fixture.Context.fRunResults.TotalTestCount);
+  case Status of
+    //ptsNone,
+    ptsFailed: inc(Fixture.Context.fRunResults.FailedTestCount);
+    ptsBroken: inc(Fixture.Context.fRunResults.BrokenTestCount);
+    ptsPassed: inc(Fixture.Context.fRunResults.PassedTestCount);
+    ptsSkipped: inc(Fixture.Context.fRunResults.SkippedTestCount);
+  end;
+  Fixture.Context.fListeners.OnEndTest(self);
+  for step in fSteps do
+    step.Free;
+  inherited Destroy;
 end;
 
 procedure TPureTestFixture<TFix>.TPureTest<T>.Execute(
   TestBodyProc: TPureTestExecuteProc);
 begin
+  Fixture.Context.ExecuteTest<TFix, T>(self, TestBodyProc);
+end;
 
+function TPureTestFixture<TFix>.TPureTest<T>.GetFixture: IPureTestFixture;
+begin
+  result := Fixture;
 end;
 
 function TPureTestFixture<TFix>.TPureTest<T>.PeekStep: TPureTestStep;
+var
+  n: Integer;
 begin
-
+  n := Length(fSteps);
+  if n>0 then begin
+    result := fSteps[n-1];
+  end else
+    result := nil;
 end;
 
 function TPureTestFixture<TFix>.TPureTest<T>.PopStep: TPureTestStep;
+var
+  n: Integer;
 begin
-
+  n := Length(fSteps);
+  if n>0 then begin
+    dec(n);
+    result := fSteps[n];
+    SetLength(fSteps, n);
+  end else
+    result := nil;
 end;
 
 procedure TPureTestFixture<TFix>.TPureTest<T>.PushStep(AStep: TPureTestStep);
+var
+  n: Integer;
 begin
-
+  n := Length(fSteps);
+  SetLength(fSteps, n+1);
+  fSteps[n] := AStep;
 end;
 
 { TPureTestFixture<TFix>.TPureTest<T>.TPureTestStep }
@@ -298,12 +692,264 @@ end;
 constructor TPureTestFixture<TFix>.TPureTest<T>.TPureTestStep.Create(
   ATest: TPureTest<T>; const AName, ADescription: string);
 begin
-
+  inherited Create;
+  Test := ATest;
+  fName := AName;
+  fDescription := ADescription;
+  fStartTime := Now;
 end;
 
-procedure TPureTestFixture<TFix>.TPureTest<T>.TPureTestStep.EndStep;
+function TPureTestFixture<TFix>.TPureTest<T>.TPureTestStep.GetTest: IPureTest;
 begin
+  result := Test;
+end;
 
+{ TPureTestObject }
+
+function TPureTestObject.GetDescription: string;
+begin
+  result := fDescription;
+end;
+
+function TPureTestObject.GetDetails: TPureTestStatusDetails;
+begin
+  result := fDetails;
+end;
+
+function TPureTestObject.GetEndTime: TDateTime;
+begin
+  result := fEndTime;
+end;
+
+function TPureTestObject.GetName: string;
+begin
+  result := fName;
+end;
+
+function TPureTestObject.GetStartTime: TDateTime;
+begin
+  result := fStartTime;
+end;
+
+function TPureTestObject.GetStatus: TPureTestStatus;
+begin
+  result := fStatus;
+end;
+
+{ TPureTestsListeners }
+
+procedure TPureTestsListeners.Add(const AListener: IPureTestsListener);
+var
+  n: Integer;
+begin
+  n := Length(fList);
+  SetLength(fList, n+1);
+  fList[n] := AListener;
+end;
+
+constructor TPureTestsListeners.Create;
+begin
+  inherited Create;
+end;
+
+destructor TPureTestsListeners.Destroy;
+begin
+  fList := nil;
+  inherited;
+end;
+
+procedure TPureTestsListeners.NotifyAll(AProc: TNotifyProc);
+var
+  AListener: IPureTestsListener;
+begin
+  for AListener in fList do begin
+    AProc(AListener);
+  end;
+end;
+
+procedure TPureTestsListeners.OnAfterExecuteTest(const Test: IPureTest);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnAfterExecuteTest(Test);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnAfterSetupFixture(
+  const Fixture: IPureTestFixture);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnAfterSetupFixture(Fixture);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnAfterStep(const Step: IPureTestStep);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnAfterStep(Step);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnAfterTearDownFixture(
+  const Fixture: IPureTestFixture);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnAfterTearDownFixture(Fixture);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnBeforeExecuteTest(const Test: IPureTest);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnBeforeExecuteTest(Test);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnBeforeSetupFixture(
+  const Fixture: IPureTestFixture);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnBeforeSetupFixture(Fixture);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnBeforeStep(const Step: IPureTestStep);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnBeforeStep(Step);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnBeforeTearDownFixture(
+  const Fixture: IPureTestFixture);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnBeforeTearDownFixture(Fixture);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnBeginTest(const Test: IPureTest);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnBeginTest(Test);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnEndTest(const Test: IPureTest);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnEndTest(Test);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnEndTestFixture(const Fixture: IPureTestFixture);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnEndTestFixture(Fixture);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnStartTestFixture(
+  const Fixture: IPureTestFixture);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnStartTestFixture(Fixture);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnTestingEnds(const Context: IPureTestsContext);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnTestingEnds(Context);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.OnTestingStarts(const Context: IPureTestsContext);
+begin
+  NotifyAll(
+    procedure (const AListener: IPureTestsListener)
+    begin
+      AListener.OnTestingStarts(Context);
+    end
+  );
+end;
+
+{ TPureTestsRunResults }
+
+{ TPureTestsRunResults }
+
+procedure TPureTestsRunResults.Clear;
+begin
+  FailedTestCount := 0;
+  BrokenTestCount := 0;
+  PassedTestCount := 0;
+  SkippedTestCount := 0;
+  TotalTestCount := 0;
+  FixtureCount := 0;
+end;
+
+{ Assert }
+
+class procedure Assert.Fail(const message: string; const errorAddrs: pointer);
+begin
+  if errorAddrs <> nil then
+    raise EPureTestFailure.Create(message) at errorAddrs
+  else
+    raise EPureTestFailure.Create(message) at ReturnAddress;
+end;
+
+class procedure Assert.FailFmt(const message: string;
+  const args: array of const; const errorAddrs: pointer);
+begin
+  Fail(Format(message, args), errorAddrs);
+end;
+
+class procedure Assert.NotImplemented;
+begin
+  Assert.Fail(SNotImplemented);
+end;
+
+class procedure Assert.Pass(const message: string);
+begin
+  raise EPureTestPass.Create(message);
 end;
 
 initialization
