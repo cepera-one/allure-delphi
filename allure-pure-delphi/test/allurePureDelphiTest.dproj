@@ -103,10 +103,13 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
+        <DCCReference Include="..\main\pureTestFramework.pas"/>
+        <DCCReference Include="..\main\pureTestAssert.pas"/>
+        <DCCReference Include="..\main\pureTestExceptions.pas"/>
+        <DCCReference Include="..\main\pureTestConsoleLogger.pas"/>
         <DCCReference Include="..\..\allure-delphi\main\src\allureDelphiInterface.pas"/>
         <DCCReference Include="..\..\allure-delphi\main\src\allureDelphiHelper.pas"/>
-        <DCCReference Include="..\..\allure-delphi\main\src\allureAttributes.pas"/>
-        <DCCReference Include="..\main\pureTestFramework.pas"/>
+        <DCCReference Include="pureTestExample.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

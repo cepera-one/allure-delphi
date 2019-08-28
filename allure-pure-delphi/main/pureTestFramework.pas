@@ -3,7 +3,7 @@ unit pureTestFramework;
 interface
 
 uses
-  System.SysUtils;
+  System.SysUtils, pureTestExceptions, pureTestAssert;
 
 type
   TPureTests = class;
@@ -89,6 +89,10 @@ type
     function GetStatus: TPureTestStatus;
     function GetDetails: TPureTestStatusDetails;
   public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Free;
+
     property Name: string read GetName;
     property Description: string read GetDescription;
     property StartTime: TDateTime read GetStartTime;
@@ -134,7 +138,7 @@ type
 
       procedure EndStep;
 
-      destructor EndTest;
+      procedure EndTest;
 
       function GetFixture: IPureTestFixture;
     end;
@@ -153,8 +157,8 @@ type
     function BeginTest<T>(const Name: string; const Description: string = ''): TPureTest<T>; overload;
     function BeginTest(const Name: string; const Description: string = ''): TPureTest; overload;
 
-    destructor EndTestFixture; overload;
-    destructor EndTestFixture(TearDownProc: TPureFixtureProc); overload;
+    procedure EndTestFixture; overload;
+    procedure EndTestFixture(TearDownProc: TPureFixtureProc); overload;
 
     function GetContext: IPureTestsContext;
   end;
@@ -198,7 +202,7 @@ type
 
     procedure RegTestProc(AProc: TTestProcedure);
 
-    procedure RunAllTests(const Filter: IPureTestsFilter = nil);
+    function RunAllTests(const Filter: IPureTestsFilter = nil): Integer;
 
     function BeginTestFixture<TFix>(const Name: string; const Description: string = ''): TPureTestFixture<TFix>; overload;
     function BeginTestFixture(const Name: string; const Description: string = ''): TPureTestFixture; overload;
@@ -280,104 +284,9 @@ type
     procedure OnTestingEnds(const Context: IPureTestsContext);
   end;
 
-  EPureTestException = class(Exception);
-  EPureTestAbort = class(EPureTestException);
-  EPureTestFailure = class(EPureTestAbort);
-  EPureTestPass = class(EPureTestAbort);
-
-  Assert = class
-  public
-    class procedure Pass(const message : string = '');
-    class procedure Fail(const message : string = ''; const errorAddrs : pointer = nil);
-    class procedure FailFmt(const message : string; const args: array of const; const errorAddrs : pointer = nil);
-
-    class procedure NotImplemented;
-
-  end;
-
-resourcestring
-  SNotImplemented = 'Not implemented';
-
+  Assert = class(pureTestAssert.Assert);
 
 implementation
-
-procedure MakeTest;
-type
-  TFixData = record
-    A: Integer;
-    B: String;
-  end;
-  TTest1Data = record
-    C: Integer;
-    D: String;
-  end;
-var
-  context: TPureTests;
-  fixture: TPureTestFixture<TFixData>;
-  test1: TPureTestFixture<TFixData>.TPureTest<TTest1Data>;
-  fixture2: TPureTestFixture;
-  test2: TPureTestFixture.TPureTest;
-begin
-  context := TPureTests.Context;
-  try
-    fixture := context.BeginTestFixture<TFixData>('SampleFixture');
-    fixture.Setup(
-      procedure
-      begin
-        Fixture.Data.A := 10;
-        Fixture.Data.B := 'sample';
-      end
-    );
-    try
-      test1 := fixture.BeginTest<TTest1Data>('Test1');
-      try
-        test1.Execute(
-          procedure
-          begin
-            test1.BeginStep('SetupTest1');
-
-
-            test1.EndStep;
-          end
-        );
-      finally
-        test1.EndTest;
-      end;
-    finally
-      fixture.EndTestFixture(
-        procedure
-        begin
-          Fixture.Data.A := 0;
-          Fixture.Data.B := '';
-        end
-      );
-    end;
-
-    fixture2 := context.BeginTestFixture('Fixture2');
-    try
-      test2 := fixture2.BeginTest('Test2');
-      try
-        test2.Execute(
-          procedure
-          begin
-            test2.BeginStep('Step1');
-            try
-
-            finally
-              test2.EndStep;
-            end;
-          end
-        );
-      finally
-        test2.EndTest;
-      end;
-    finally
-      fixture2.EndTestFixture;
-    end;
-  finally
-    context.Finalize;
-  end;
-end;
 
 { TPureTestsContext }
 
@@ -397,11 +306,13 @@ end;
 constructor TPureTests.Create;
 begin
   inherited Create;
+  fListeners := TPureTestsListeners.Create;
+  fListeners._AddRef;
 end;
 
 destructor TPureTests.Destroy;
 begin
-
+  fListeners._Release;
   inherited;
 end;
 
@@ -454,8 +365,11 @@ end;
 class function TPureTests.GetContext: TPureTests;
 begin
   if fContext=nil then begin
-    fContext := TPureTests.Create;
-    fContext.Initialize;
+    try
+      fContext := TPureTests.Create;
+      fContext.Initialize;
+    except
+    end;
   end;
   result := fContext;
 end;
@@ -484,17 +398,23 @@ begin
   fTestProcs[n] := AProc;
 end;
 
-procedure TPureTests.RunAllTests(const Filter: IPureTestsFilter = nil);
+function TPureTests.RunAllTests(const Filter: IPureTestsFilter = nil): Integer;
 var
   proc: TTestProcedure;
 begin
   fFilter := Filter;
   fRunResults.Clear;
-  for proc in fTestProcs do begin
-    try
-      proc();
-    except
+  fListeners.OnTestingStarts(self);
+  try
+    for proc in fTestProcs do begin
+      try
+        proc();
+      except
+      end;
     end;
+  finally
+    result := fRunResults.BrokenTestCount + fRunResults.FailedTestCount;
+    fListeners.OnTestingEnds(self);
   end;
 end;
 
@@ -565,7 +485,7 @@ begin
   fStartTime := Now;
 end;
 
-destructor TPureTestFixture<TFix>.EndTestFixture(TearDownProc: TPureFixtureProc);
+procedure TPureTestFixture<TFix>.EndTestFixture(TearDownProc: TPureFixtureProc);
 begin
   TearDown(TearDownProc);
   EndTestFixture;
@@ -576,12 +496,12 @@ begin
   result := Context;
 end;
 
-destructor TPureTestFixture<TFix>.EndTestFixture;
+procedure TPureTestFixture<TFix>.EndTestFixture;
 begin
   fEndTime := Now;
   inc(Context.fRunResults.FixtureCount);
   Context.fListeners.OnEndTestFixture(self);
-  inherited Destroy;
+  Free;
 end;
 
 procedure TPureTestFixture<TFix>.Setup(SetupProc: TPureFixtureProc);
@@ -625,7 +545,7 @@ begin
   end;
 end;
 
-destructor TPureTestFixture<TFix>.TPureTest<T>.EndTest;
+procedure TPureTestFixture<TFix>.TPureTest<T>.EndTest;
 var
   step: TPureTestStep;
 begin
@@ -640,7 +560,7 @@ begin
   Fixture.Context.fListeners.OnEndTest(self);
   for step in fSteps do
     step.Free;
-  inherited Destroy;
+  Free;
 end;
 
 procedure TPureTestFixture<TFix>.TPureTest<T>.Execute(
@@ -705,6 +625,24 @@ begin
 end;
 
 { TPureTestObject }
+
+constructor TPureTestObject.Create;
+begin
+  inherited Create;
+  _AddRef;
+end;
+
+destructor TPureTestObject.Destroy;
+begin
+  inherited;
+end;
+
+procedure TPureTestObject.Free;
+begin
+  if self<>nil then begin
+    self._Release;
+  end;
+end;
 
 function TPureTestObject.GetDescription: string;
 begin
@@ -926,32 +864,4 @@ begin
   FixtureCount := 0;
 end;
 
-{ Assert }
-
-class procedure Assert.Fail(const message: string; const errorAddrs: pointer);
-begin
-  if errorAddrs <> nil then
-    raise EPureTestFailure.Create(message) at errorAddrs
-  else
-    raise EPureTestFailure.Create(message) at ReturnAddress;
-end;
-
-class procedure Assert.FailFmt(const message: string;
-  const args: array of const; const errorAddrs: pointer);
-begin
-  Fail(Format(message, args), errorAddrs);
-end;
-
-class procedure Assert.NotImplemented;
-begin
-  Assert.Fail(SNotImplemented);
-end;
-
-class procedure Assert.Pass(const message: string);
-begin
-  raise EPureTestPass.Create(message);
-end;
-
-initialization
-  MakeTest;
 end.
