@@ -110,6 +110,7 @@
         <DCCReference Include="..\..\allure-delphi\main\src\allureDelphiInterface.pas"/>
         <DCCReference Include="..\..\allure-delphi\main\src\allureDelphiHelper.pas"/>
         <DCCReference Include="pureTestExample.pas"/>
+        <DCCReference Include="..\main\pureTestAllureLogger.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

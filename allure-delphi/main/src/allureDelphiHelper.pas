@@ -4,7 +4,7 @@ interface
 
 uses
   allureDelphiInterface, Winapi.Windows, System.SysUtils, System.DateUtils,
-  System.Hash, Winapi.ActiveX;
+  System.Hash, Winapi.ActiveX, Winapi.ShellApi;
 
 type
 
@@ -72,6 +72,8 @@ type
     class procedure Initialize; static;
     class procedure Finalize; static;
     property Lifecycle: IAllureLifecycle read GetLifecycle;
+
+    procedure GenerateReport(const ReportDir: string = ''; const ResultsDir: string = '');
 
     procedure UpdateTestCase(UpdateProc: TAllureUpdateActionHelper.TUpdateTestProc); overload;
     procedure UpdateTestCase(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateTestProc); overload;
@@ -157,6 +159,23 @@ begin
       Allure.fDllHandle := 0;
     end;
   except
+  end;
+end;
+
+procedure TAllureHelper.GenerateReport(const ReportDir: string = ''; const ResultsDir: string = '');
+var
+  p, resDir: String;
+begin
+  if ResultsDir<>'' then
+    resDir := ResultsDir
+  else if Lifecycle<>nil then
+    resDir := Lifecycle.ResultsDirectory
+  else begin
+    resDir := 'allure-results';
+  end;
+  if DirectoryExists(resDir) then begin
+    p := 'serve "' + resDir + '"';
+    ShellExecute(0, 'open', 'allure', PChar(p), nil, 1);
   end;
 end;
 

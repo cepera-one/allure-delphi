@@ -12,7 +12,8 @@ uses
   pureTestConsoleLogger in '..\main\pureTestConsoleLogger.pas',
   allureDelphiInterface in '..\..\allure-delphi\main\src\allureDelphiInterface.pas',
   allureDelphiHelper in '..\..\allure-delphi\main\src\allureDelphiHelper.pas',
-  pureTestExample in 'pureTestExample.pas';
+  pureTestExample in 'pureTestExample.pas',
+  pureTestAllureLogger in '..\main\pureTestAllureLogger.pas';
 
 procedure Main;
 var
@@ -21,8 +22,10 @@ begin
   context := TPureTests.Context;
   try
     context.Listeners.Add(TPureTestConsoleLogger.Create);
+    context.Listeners.Add(TPureTestAllureLogger.Create);
     ExitCode := context.RunAllTests;
-    ReadLn;
+    Allure.GenerateReport;
+    //ReadLn;
   finally
     context.Finalize;
   end;

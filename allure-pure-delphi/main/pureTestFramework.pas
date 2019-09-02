@@ -18,6 +18,14 @@ type
     ptsSkipped
   );
 
+  TPureSeverityLevel = (
+    pslBlocker,
+    pslCritical,
+    pslNormal,
+    pslMinor,
+    pslTrivial
+  );
+
   TPureTestStatusDetails = record
     Msg: string;
   end;
@@ -65,6 +73,20 @@ type
   ['{FFE64288-E6B2-4230-8262-EF467A68A604}']
     function GetFixture: IPureTestFixture;
     property Fixture: IPureTestFixture read GetFixture;
+    procedure SetSeverity(const Value: TPureSeverityLevel);
+    function GetSeverity: TPureSeverityLevel;
+    property Severity: TPureSeverityLevel read GetSeverity write SetSeverity;
+
+    procedure AddTestClass(const Value: string);
+    procedure AddTestMethod(const Value: string);
+    procedure AddIssue(const IssueID: string; const IssueLink: string = '');
+    procedure AddLink(const Uri: string; const LinkName: string = '');
+    procedure AddEpic(const Value: string);
+    procedure AddFeature(const Value: string);
+    procedure AddStory(const Value: string);
+    procedure MarkFlaky;
+    procedure MarkMuted;
+    procedure MarkKnown;
   end;
 
   IPureTestStep = interface(IPureTestObject)
@@ -122,15 +144,31 @@ type
       TSteps = TArray<TPureTestStep>;
     private
       fSteps: TSteps;
+        fSeverity: TPureSeverityLevel;
 
       procedure PushStep(AStep: TPureTestStep);
       function PopStep: TPureTestStep;
       function PeekStep: TPureTestStep;
+      procedure AbortSteps;
+      procedure SetSeverity(const Value: TPureSeverityLevel);
+      function GetSeverity: TPureSeverityLevel;
     public
       Data: T;
       Fixture: TPureTestFixture<TFix>;
     public
       constructor Create(AFixture: TPureTestFixture<TFix>; const AName: string; const ADescription: string = '');
+
+      property Severity: TPureSeverityLevel read GetSeverity write SetSeverity;
+      procedure AddTestClass(const Value: string);
+      procedure AddTestMethod(const Value: string);
+      procedure AddIssue(const IssueID: string; const IssueLink: string = '');
+      procedure AddLink(const Uri: string; const LinkName: string = '');
+      procedure AddEpic(const Value: string);
+      procedure AddFeature(const Value: string);
+      procedure AddStory(const Value: string);
+      procedure MarkFlaky;
+      procedure MarkMuted;
+      procedure MarkKnown;
 
       procedure Execute(TestBodyProc: TPureTestExecuteProc);
 
@@ -255,13 +293,29 @@ type
 
   end;
 
+  IPureTestsAdvancedListener = interface(IPureTestsListener)
+  ['{D949F305-2608-4A22-821B-CBF0A275502B}']
+    procedure AddTestClass(const Test: IPureTest; const Value: string);
+    procedure AddTestMethod(const Test: IPureTest; const Value: string);
+    procedure AddIssue(const Test: IPureTest; const IssueID: string; const IssueLink: string = '');
+    procedure AddLink(const Test: IPureTest; const Uri: string; const LinkName: string = '');
+    procedure AddEpic(const Test: IPureTest; const Value: string);
+    procedure AddFeature(const Test: IPureTest; const Value: string);
+    procedure AddStory(const Test: IPureTest; const Value: string);
+    procedure MarkFlaky(const Test: IPureTest);
+    procedure MarkMuted(const Test: IPureTest);
+    procedure MarkKnown(const Test: IPureTest);
+  end;
+
   TPureTestsListeners = class(TInterfacedObject{, IPureTestsListener})
   private
     type
       TNotifyProc = reference to procedure (const AListener: IPureTestsListener);
+      TNotifyAdvProc = reference to procedure (const AListener: IPureTestsAdvancedListener);
     var
     fList: TArray<IPureTestsListener>;
     procedure NotifyAll(AProc: TNotifyProc);
+    procedure NotifyAllAdvanced(AProc: TNotifyAdvProc);
   public
     constructor Create;
     destructor Destroy; override;
@@ -282,6 +336,18 @@ type
     procedure OnAfterTearDownFixture(const Fixture: IPureTestFixture);
     procedure OnEndTestFixture(const Fixture: IPureTestFixture);
     procedure OnTestingEnds(const Context: IPureTestsContext);
+
+    //IPureTestsAdvancedListener
+    procedure AddTestClass(const Test: IPureTest; const Value: string);
+    procedure AddTestMethod(const Test: IPureTest; const Value: string);
+    procedure AddIssue(const Test: IPureTest; const IssueID: string; const IssueLink: string = '');
+    procedure AddLink(const Test: IPureTest; const Uri: string; const LinkName: string = '');
+    procedure AddEpic(const Test: IPureTest; const Value: string);
+    procedure AddFeature(const Test: IPureTest; const Value: string);
+    procedure AddStory(const Test: IPureTest; const Value: string);
+    procedure MarkFlaky(const Test: IPureTest);
+    procedure MarkMuted(const Test: IPureTest);
+    procedure MarkKnown(const Test: IPureTest);
   end;
 
   Assert = class(pureTestAssert.Assert);
@@ -342,14 +408,17 @@ begin
       on E: EPureTestFailure do begin
         Test.fStatus := ptsFailed;
         Test.fDetails.Msg := E.Message;
+        Test.AbortSteps;
       end;
       on E: EPureTestPass do begin
         Test.fStatus := ptsPassed;
         Test.fDetails.Msg := E.Message;
+        Test.AbortSteps;
       end;
       on E: Exception do begin
         Test.fStatus := ptsBroken;
         Test.fDetails.Msg := E.Message;
+        Test.AbortSteps;
       end;
     end;
   finally
@@ -426,6 +495,7 @@ begin
     try
       if (fFilter=nil) or fFilter.FixtureMatch(Fixture) then begin
         SetupProc();
+        Fixture.fStatus := ptsPassed;
       end;
     except
       on E: Exception do begin
@@ -516,6 +586,60 @@ end;
 
 { TPureTestFixture<TFix>.TPureTest<T> }
 
+procedure TPureTestFixture<TFix>.TPureTest<T>.AbortSteps;
+var
+  step: TPureTestStep;
+  i: Integer;
+begin
+  for i := High(fSteps) downto 0 do begin
+    step := fSteps[i];
+    step.fEndTime := Now;
+    step.fStatus := self.Status;
+    step.fDetails := self.Details;
+    Fixture.Context.fListeners.OnAfterStep(step);
+    step.Free;
+  end;
+  fSteps := nil;
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.AddEpic(const Value: string);
+begin
+  Fixture.Context.fListeners.AddEpic(self, Value);
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.AddFeature(const Value: string);
+begin
+  Fixture.Context.fListeners.AddFeature(self, Value);
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.AddIssue(const IssueID,
+  IssueLink: string);
+begin
+  Fixture.Context.fListeners.AddIssue(self, IssueID, IssueLink);
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.AddLink(const Uri,
+  LinkName: string);
+begin
+  Fixture.Context.fListeners.AddLink(self, Uri, LinkName);
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.AddStory(const Value: string);
+begin
+  Fixture.Context.fListeners.AddStory(self, Value);
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.AddTestClass(const Value: string);
+begin
+  Fixture.Context.fListeners.AddTestClass(self, Value);
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.AddTestMethod(
+  const Value: string);
+begin
+  Fixture.Context.fListeners.AddTestMethod(self, Value);
+end;
+
 function TPureTestFixture<TFix>.TPureTest<T>.BeginStep(const Name,
   Description: string): TPureTestStep;
 begin
@@ -531,6 +655,7 @@ begin
   Fixture := AFixture;
   fName := AName;
   fDescription := ADescription;
+  fSeverity := pslNormal;
 end;
 
 procedure TPureTestFixture<TFix>.TPureTest<T>.EndStep;
@@ -540,6 +665,7 @@ begin
   step := PopStep;
   if step<>nil then begin
     step.fEndTime := Now;
+    step.fStatus := ptsPassed;
     Fixture.Context.fListeners.OnAfterStep(step);
     step.Free;
   end;
@@ -574,6 +700,26 @@ begin
   result := Fixture;
 end;
 
+function TPureTestFixture<TFix>.TPureTest<T>.GetSeverity: TPureSeverityLevel;
+begin
+  result := fSeverity;
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.MarkFlaky;
+begin
+  Fixture.Context.fListeners.MarkFlaky(self);
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.MarkKnown;
+begin
+  Fixture.Context.fListeners.MarkKnown(self);
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.MarkMuted;
+begin
+  Fixture.Context.fListeners.MarkMuted(self);
+end;
+
 function TPureTestFixture<TFix>.TPureTest<T>.PeekStep: TPureTestStep;
 var
   n: Integer;
@@ -605,6 +751,12 @@ begin
   n := Length(fSteps);
   SetLength(fSteps, n+1);
   fSteps[n] := AStep;
+end;
+
+procedure TPureTestFixture<TFix>.TPureTest<T>.SetSeverity(
+  const Value: TPureSeverityLevel);
+begin
+  fSeverity := Value;
 end;
 
 { TPureTestFixture<TFix>.TPureTest<T>.TPureTestStep }
@@ -685,6 +837,83 @@ begin
   fList[n] := AListener;
 end;
 
+procedure TPureTestsListeners.AddEpic(const Test: IPureTest;
+  const Value: string);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.AddEpic(Test, Value);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.AddFeature(const Test: IPureTest;
+  const Value: string);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.AddFeature(Test, Value);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.AddIssue(const Test: IPureTest; const IssueID,
+  IssueLink: string);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.AddIssue(Test, IssueID, IssueLink);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.AddLink(const Test: IPureTest; const Uri,
+  LinkName: string);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.AddLink(Test, Uri, LinkName);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.AddStory(const Test: IPureTest;
+  const Value: string);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.AddStory(Test, Value);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.AddTestClass(const Test: IPureTest;
+  const Value: string);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.AddTestClass(Test, Value);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.AddTestMethod(const Test: IPureTest;
+  const Value: string);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.AddTestMethod(Test, Value);
+    end
+  );
+end;
+
 constructor TPureTestsListeners.Create;
 begin
   inherited Create;
@@ -696,12 +925,54 @@ begin
   inherited;
 end;
 
+procedure TPureTestsListeners.MarkFlaky(const Test: IPureTest);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.MarkFlaky(Test);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.MarkKnown(const Test: IPureTest);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.MarkKnown(Test);
+    end
+  );
+end;
+
+procedure TPureTestsListeners.MarkMuted(const Test: IPureTest);
+begin
+  NotifyAllAdvanced(
+    procedure (const AListener: IPureTestsAdvancedListener)
+    begin
+      AListener.MarkMuted(Test);
+    end
+  );
+end;
+
 procedure TPureTestsListeners.NotifyAll(AProc: TNotifyProc);
 var
   AListener: IPureTestsListener;
 begin
   for AListener in fList do begin
     AProc(AListener);
+  end;
+end;
+
+procedure TPureTestsListeners.NotifyAllAdvanced(AProc: TNotifyAdvProc);
+var
+  AListener: IPureTestsListener;
+  AAdvListener: IPureTestsAdvancedListener;
+begin
+  for AListener in fList do begin
+    if AListener.QueryInterface(IPureTestsAdvancedListener, AAdvListener)=0 then begin
+      AProc(AAdvListener);
+    end;
   end;
 end;
 
