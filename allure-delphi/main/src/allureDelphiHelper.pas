@@ -4,7 +4,8 @@ interface
 
 uses
   allureDelphiInterface, Winapi.Windows, System.SysUtils, System.DateUtils,
-  System.Hash, Winapi.ActiveX, Winapi.ShellApi;
+  System.Hash, Winapi.ActiveX, Winapi.ShellApi, Vcl.Graphics,
+  Vcl.Imaging.pngimage, System.Classes;
 
 type
 
@@ -89,6 +90,13 @@ type
     procedure AddAttachment(const Name, AType: String; const Content: TBytes; const FileExtension: String = ''); overload;
     procedure AddAttachment(const Path: String; const Name: String = ''); overload;
     procedure AddAttachmentText(const Name, AValue: String);
+    procedure AddScreenshot(
+      const Name: String = '';
+      WindowHandle: HWND = 0;
+      Left: Integer = -1000000;
+      Top: Integer = -1000000;
+      Width: Integer = -1000000;
+      Height: Integer = -1000000);
 
   end;
 
@@ -130,6 +138,53 @@ end;
 procedure TAllureHelper.AddAttachmentText(const Name, AValue: String);
 begin
   AddAttachment(Name, TMimeTypesMap.PlainText, TEncoding.UTF8.GetBytes(AValue));
+end;
+
+procedure TAllureHelper.AddScreenshot(const Name: String;
+  WindowHandle: HWND; Left, Top, Width, Height: Integer);
+var
+  nm: string;
+  r: TRect;
+  dc: HDC;
+  bmp: TBitmap;
+  png: TPngImage;
+  ms: TMemoryStream;
+begin
+  if Name='' then
+    nm := 'Screenshot'
+  else
+    nm := Name;
+  if WindowHandle=0 then
+    WindowHandle := GetDesktopWindow;
+  if WindowHandle=0 then exit;
+  if (Left=-1000000) or (Top=-1000000) or (Width=-1000000) or (Height=-1000000)
+  then begin
+    if not GetWindowRect(WindowHandle, r) then
+      exit;
+  end else begin
+    r.Left := Left;
+    r.Top := Top;
+    r.Width := Width;
+    r.Height := Height;
+  end;
+  png := TPngImage.Create;
+  bmp := TBitmap.Create;
+  ms := TMemoryStream.Create;
+  dc := GetWindowDC(WindowHandle);
+  try
+    bmp.PixelFormat := pf24bit;
+    bmp.Height := r.Height;
+    bmp.Width := r.Width;
+    BitBlt(bmp.Canvas.Handle, 0, 0, bmp.Width, bmp.Height, dc, r.Left, r.Top, SRCCOPY);
+    png.Assign(bmp);
+    png.SaveToStream(ms);
+    AddAttachment(nm, 'image/x-png', ms.Memory, ms.Size, '.png');
+  finally
+    ms.Free;
+    ReleaseDC(WindowHandle, dc);
+    bmp.Free;
+    png.Free;
+  end;
 end;
 
 procedure TAllureHelper.Clear;

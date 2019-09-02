@@ -114,6 +114,7 @@ begin
       'Just some long text' + #13#10 +
       'Just some long text' + #13#10
   );
+  Allure.AddScreenshot('Desktop');
 end;
 
 procedure TAllureDUnitXLoggerTests.ShouldBeBroken;

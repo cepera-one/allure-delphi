@@ -23,7 +23,7 @@ begin
   try
     context.Listeners.Add(TPureTestConsoleLogger.Create);
     context.Listeners.Add(TPureTestAllureLogger.Create);
-    ExitCode := context.RunAllTests;
+    ExitCode := context.RunTests;
     Allure.GenerateReport;
     //ReadLn;
   finally

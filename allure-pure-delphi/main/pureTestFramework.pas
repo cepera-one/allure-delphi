@@ -28,6 +28,7 @@ type
 
   TPureTestStatusDetails = record
     Msg: string;
+    StackTrace: string;
   end;
 
   TPureTestsRunResults = record
@@ -240,7 +241,7 @@ type
 
     procedure RegTestProc(AProc: TTestProcedure);
 
-    function RunAllTests(const Filter: IPureTestsFilter = nil): Integer;
+    function RunTests(const Filter: IPureTestsFilter = nil): Integer;
 
     function BeginTestFixture<TFix>(const Name: string; const Description: string = ''): TPureTestFixture<TFix>; overload;
     function BeginTestFixture(const Name: string; const Description: string = ''): TPureTestFixture; overload;
@@ -405,19 +406,15 @@ begin
         end;
       end;
     except
-      on E: EPureTestFailure do begin
-        Test.fStatus := ptsFailed;
-        Test.fDetails.Msg := E.Message;
-        Test.AbortSteps;
-      end;
-      on E: EPureTestPass do begin
-        Test.fStatus := ptsPassed;
-        Test.fDetails.Msg := E.Message;
-        Test.AbortSteps;
-      end;
       on E: Exception do begin
-        Test.fStatus := ptsBroken;
+        if E is EPureTestFailure then
+          Test.fStatus := ptsFailed
+        else if E is EPureTestPass then
+          Test.fStatus := ptsPassed
+        else
+          Test.fStatus := ptsBroken;
         Test.fDetails.Msg := E.Message;
+        Test.fDetails.StackTrace := E.StackTrace;
         Test.AbortSteps;
       end;
     end;
@@ -467,7 +464,7 @@ begin
   fTestProcs[n] := AProc;
 end;
 
-function TPureTests.RunAllTests(const Filter: IPureTestsFilter = nil): Integer;
+function TPureTests.RunTests(const Filter: IPureTestsFilter = nil): Integer;
 var
   proc: TTestProcedure;
 begin
@@ -501,6 +498,7 @@ begin
       on E: Exception do begin
         Fixture.fStatus := ptsBroken;
         Fixture.fDetails.Msg := E.Message;
+        Fixture.fDetails.StackTrace := E.StackTrace;
       end;
     end;
   finally
@@ -523,6 +521,7 @@ begin
       on E: Exception do begin
         Fixture.fStatus := ptsBroken;
         Fixture.fDetails.Msg := E.Message;
+        Fixture.fDetails.StackTrace := E.StackTrace;
       end;
     end;
   finally

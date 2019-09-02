@@ -3,7 +3,7 @@ unit pureTestExample;
 interface
 
 uses
-  System.SysUtils, pureTestFramework;
+  System.SysUtils, pureTestFramework, allureDelphiHelper;
 
 type
   TFixData = record
@@ -116,7 +116,17 @@ begin
         begin
           test2.BeginStep('Step1');
           try
-
+            Allure.AddAttachmentText('Some example of long text attachment',
+              'Long text line' + #13#10 +
+              'Long text line' + #13#10 +
+              'Long text line' + #13#10 +
+              'Long text line' + #13#10 +
+              'Long text line' + #13#10 +
+              'Long text line' + #13#10 +
+              'Long text line' + #13#10 +
+              'Long text line'
+            );
+            Allure.AddScreenshot('Window', 0, 100, 100, 500, 500);
           finally
             test2.EndStep;
           end;
