@@ -24,7 +24,7 @@ begin
     context.Listeners.Add(TPureTestConsoleLogger.Create);
     context.Listeners.Add(TPureTestAllureLogger.Create);
     ExitCode := context.RunTests;
-    Allure.GenerateReport;
+    Allure.GenerateReport('allure-report');
     //ReadLn;
   finally
     context.Finalize;

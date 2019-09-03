@@ -140,11 +140,8 @@ begin
 end;
 
 procedure TAllureDUnitXLoggerTests.ShouldMakeAllureServe;
-var
-  p: String;
 begin
-  p := 'serve "' + allure.Lifecycle.ResultsDirectory + '"';
-  ShellExecute(0, 'open', 'allure', PChar(p), nil, 1);
+  Allure.GenerateReport;
 end;
 
 procedure TAllureDUnitXLoggerTests.ShouldPass;

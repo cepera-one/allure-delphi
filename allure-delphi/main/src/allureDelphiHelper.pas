@@ -219,7 +219,7 @@ end;
 
 procedure TAllureHelper.GenerateReport(const ReportDir: string = ''; const ResultsDir: string = '');
 var
-  p, resDir: String;
+  p, resDir, repDir: String;
 begin
   if ResultsDir<>'' then
     resDir := ResultsDir
@@ -229,8 +229,18 @@ begin
     resDir := 'allure-results';
   end;
   if DirectoryExists(resDir) then begin
-    p := 'serve "' + resDir + '"';
-    ShellExecute(0, 'open', 'allure', PChar(p), nil, 1);
+    if ReportDir<>'' then begin
+      // To specified folder
+      p := 'generate --clean --output "' + ReportDir + '" "' + resDir + '"';
+      ShellExecute(0, 'open', 'allure', PChar(p), nil, 1);
+      sleep(5000);
+      p := 'open "' + ReportDir + '"';
+      ShellExecute(0, 'open', 'allure', PChar(p), nil, 1);
+    end else begin
+      // To temp folder
+      p := 'serve "' + resDir + '"';
+      ShellExecute(0, 'open', 'allure', PChar(p), nil, 1);
+    end;
   end;
 end;
 
