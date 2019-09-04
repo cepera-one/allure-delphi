@@ -9,6 +9,7 @@ uses
 type
 
   [TestFixture('Tests of the DUnitX logger to the allure format')]
+  [Epic('AllureDUnitXLogger')]
   TAllureDUnitXLoggerTests = class(TObject)
   public
     constructor Create;
@@ -43,7 +44,6 @@ type
 
     [Test]
     [Severity(aslCritical)]
-    [Epic('AllureDUnitXLogger')]
     [Feature('Attributes testing')]
     [Story('Check for behaviors attributes')]
     procedure ShouldBeBroken; virtual;

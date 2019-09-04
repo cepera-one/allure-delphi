@@ -394,7 +394,7 @@ begin
   Allure.Initialize;
   if FileExists(ConfigFileName) then
     Allure.Lifecycle.AssignConfigFromFile(ConfigFileName);
-  Allure.Lifecycle.CleanupResultDirectory;
+//  Allure.Lifecycle.CleanupResultDirectory;
 end;
 
 procedure TPureTestAllureLogger.SetConfigFileName(const Value: string);

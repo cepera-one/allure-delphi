@@ -445,8 +445,10 @@ begin
   rType := fRttiContext.GetType(Test.Fixture.TestClass);
   if rType<>nil then begin
     Method := rType.GetMethod(Test.MethodName);
-    if Method<>nil then
+    if Method<>nil then begin
+      FillAttributes(result, rType.GetAttributes);
       FillAttributes(result, Method.GetAttributes);
+    end;
   end;
 end;
 
@@ -928,7 +930,7 @@ begin
   Allure.Initialize;
   if FileExists(ConfigFileName) then
     Allure.Lifecycle.AssignConfigFromFile(ConfigFileName);
-  Allure.Lifecycle.CleanupResultDirectory;
+//  Allure.Lifecycle.CleanupResultDirectory;
 end;
 
 procedure TDUnitXAllureLogger.OnTestMemoryLeak(const threadId: TThreadID;
