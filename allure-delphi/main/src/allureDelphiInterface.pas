@@ -36,7 +36,7 @@ type
 
   TAllureString = WideString;
   TAllureBoolean = WordBool;
-  TAllureTag = Int64;
+  TAllureTag = NativeInt;
 
   TAllureStatus = (
     asNone,
