@@ -62,10 +62,16 @@ type
     procedure Invoke(const StepResult: IAllureStepResult); overload; safecall;
   end;
 
+  TAllureStepProc = reference to procedure ();
+  TAllureStepHandler = reference to procedure (
+    const StepName, StepDescription: string;
+    StepProc: TAllureStepProc);
+
   TAllureHelper = record
   private
     fDllHandle: THandle;
     fLifecycle: IAllureLifecycle;
+    fStepHandler: TAllureStepHandler;
 
     procedure Clear;
     function GetLifecycle: IAllureLifecycle;
@@ -83,6 +89,10 @@ type
     procedure UpdateStep(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateStepProc); overload;
     procedure UpdateFixture(UpdateProc: TAllureUpdateActionHelper.TUpdateFixtureProc); overload;
     procedure UpdateFixture(const Uuid: TAllureString; UpdateProc: TAllureUpdateActionHelper.TUpdateFixtureProc); overload;
+
+    procedure AssignStepHandler(StepHandler: TAllureStepHandler);
+    procedure RunStep(const StepName: string; StepProc: TAllureStepProc); overload;
+    procedure RunStep(const StepName, StepDescription: string; StepProc: TAllureStepProc); overload;
 
     procedure AddAttachment(const Name, AType, FileExtension: String; const Stream: IStream); overload;
     procedure AddAttachment(const Name, AType, Path: String); overload;
@@ -187,6 +197,11 @@ begin
   end;
 end;
 
+procedure TAllureHelper.AssignStepHandler(StepHandler: TAllureStepHandler);
+begin
+  fStepHandler := StepHandler;
+end;
+
 procedure TAllureHelper.Clear;
 begin
   try
@@ -271,6 +286,21 @@ begin
     end;
   except
   end;
+end;
+
+procedure TAllureHelper.RunStep(const StepName, StepDescription: string;
+  StepProc: TAllureStepProc);
+begin
+  if Assigned(fStepHandler) then begin
+    fStepHandler(StepName, StepDescription, StepProc);
+  end else
+    StepProc();
+end;
+
+procedure TAllureHelper.RunStep(const StepName: string;
+  StepProc: TAllureStepProc);
+begin
+  RunStep(StepName, '', StepProc);
 end;
 
 procedure TAllureHelper.UpdateFixture(const Uuid: TAllureString;

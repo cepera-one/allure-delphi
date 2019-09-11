@@ -78,10 +78,19 @@ begin
 end;
 
 function TAllureDUnitXLoggerTests.MakeStep(Index: Integer): string;
+var
+  res: string;
 begin
-  if Index=2 then
-    Assert.Fail('Incorrect index');
-  result := 'res_' + IntToStr(Index);
+  res := '';
+  Allure.RunStep('MakeStep',
+    procedure
+    begin
+      if Index=2 then
+        Assert.Fail('Incorrect index');
+      res := 'res_' + IntToStr(Index);
+    end
+  );
+  result := res;
 end;
 
 procedure TAllureDUnitXLoggerTests.Setup;
@@ -141,7 +150,7 @@ end;
 
 procedure TAllureDUnitXLoggerTests.ShouldMakeAllureServe;
 begin
-  Allure.GenerateReport;
+  //Allure.GenerateReport;
 end;
 
 procedure TAllureDUnitXLoggerTests.ShouldPass;

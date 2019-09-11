@@ -22,8 +22,7 @@ var
   runner : ITestRunner;
   results : IRunResults;
   logger : ITestLogger;
-  nunitLogger : ITestLogger;
-  allureLogger: TDUnitXAllureLogger;
+  allureLogger: TDUnitXAllureBaseLogger;
 begin
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
@@ -41,12 +40,8 @@ begin
     logger := TDUnitXConsoleLogger.Create(true);
     runner.AddLogger(logger);
 
-    //Generate an NUnit compatible XML File
-    nunitLogger := TDUnitXXMLNUnitFileLogger.Create(TDUnitX.Options.XMLOutputFile);
-    runner.AddLogger(nunitLogger);
-
     // Generate output in allure 2 (JSON) format
-    allureLogger := TDUnitXAllureLogger.Create;
+    allureLogger := TDUnitXAllureSimpleLogger.Create; //TDUnitXAllureRttiLogger.Create;
     runner.AddLogger(allureLogger);
 
     runner.FailsOnNoAsserts := False; //When true, Assertions must be made during tests;
@@ -56,14 +51,14 @@ begin
     if not results.AllPassed then
       System.ExitCode := EXIT_ERRORS;
 
-    {$IFNDEF CI}
+    Allure.GenerateReport;
+
     //We don't want this happening when running under CI.
     if TDUnitX.Options.ExitBehavior = TDUnitXExitBehavior.Pause then
     begin
       System.Write('Done.. press <Enter> key to quit.');
       System.Readln;
     end;
-    {$ENDIF}
   except
     on E: Exception do
       System.Writeln(E.ClassName, ': ', E.Message);
