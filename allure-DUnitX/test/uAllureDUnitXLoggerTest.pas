@@ -85,7 +85,7 @@ begin
   Allure.RunStep('MakeStep',
     procedure
     begin
-      if Index=2 then
+      if Index=1 then
         Assert.Fail('Incorrect index');
       res := 'res_' + IntToStr(Index);
     end
