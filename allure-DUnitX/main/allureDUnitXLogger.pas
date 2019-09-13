@@ -5,17 +5,18 @@ interface
 uses
   System.RTTI, DUnitX.TestFramework, allureDelphiInterface, allureDelphiHelper,
   System.SysUtils, MethodsInterceptor, DUnitX.Extensibility, DUnitX.Utils,
-  DUnitX.TestFixture, allureAttributes, DUnitX.Exceptions, System.TypInfo;
+  DUnitX.TestFixture, allureAttributes, DUnitX.Exceptions, System.TypInfo,
+  DUnitX.CommandLine.Options, System.IOUtils;
 
 type
 
   TDUnitXAllureBaseLogger = class(TInterfacedObject, ITestLogger)
   private class var
     fRttiContext: TRttiContext;
-  protected
     fConfigFileName: string;
-    procedure SetConfigFileName(const Value: string);
-
+    fDefaultResultsDir: string;
+    fDefaultReportDir: string;
+  protected
     function Cast(const intf: IUnknown; const IID: TGUID; out Res): Boolean;
     function IsSupportedFixture(const Fixture: ITestFixtureInfo): Boolean;
     function GetFixtureInstance(const Fixture: ITestFixtureInfo): Pointer;
@@ -29,7 +30,11 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    property ConfigFileName: string read fConfigFileName write SetConfigFileName;
+    class property ConfigFileName: string read fConfigFileName write fConfigFileName;
+    class property DefaultResultsDir: string read fDefaultResultsDir;
+    class property DefaultReportDir: string read fDefaultReportDir;
+
+    class procedure RegisterOptions; static;
   public
 
     ///	<summary>
@@ -790,6 +795,8 @@ end;
 class constructor TDUnitXAllureBaseLogger.CreateClass;
 begin
   fRttiContext := TRttiContext.Create;
+  fDefaultResultsDir := 'allure-results';
+  fDefaultReportDir := 'allure-report';
 end;
 
 destructor TDUnitXAllureBaseLogger.Destroy;
@@ -990,9 +997,24 @@ begin
   end;
 end;
 
-procedure TDUnitXAllureBaseLogger.SetConfigFileName(const Value: string);
+class procedure TDUnitXAllureBaseLogger.RegisterOptions;
 begin
-  fConfigFileName := Value;
+  try
+    TOptionsRegistry.RegisterOption<string>('allureConfig', 'allureConf', 'Allure configuration file',
+      procedure(value :string)
+      begin
+        if value<>'' then begin
+          if ExtractFileDrive(value)='' then
+            value := TPath.GetFullPath(value);
+          ConfigFileName := value;
+          value := ExtractFilePath(value);
+          fDefaultResultsDir := ChangeFilePath(fDefaultResultsDir, value);
+          fDefaultReportDir := ChangeFilePath(fDefaultReportDir, value);
+        end;
+      end
+    );
+  except
+  end;
 end;
 
 function TDUnitXAllureBaseLogger.Cast(const intf: IInterface; const IID: TGUID;
@@ -1113,11 +1135,16 @@ var
   Method: TRttiMethod;
 begin
   result := Allure.Lifecycle.CreateTestResult;
-  result.Name := Test.Name;
-  result.FullName := Test.FullName;
+  {$IFDEF CPUX64}
+  result.Name := Test.Name + '_x64';
+  result.FullName := Test.FullName + '.x64';
+  {$ELSE}
+  result.Name := Test.Name + '_x32';
+  result.FullName := Test.FullName + '.x32';
+  {$ENDIF}
   result.HistoryID := TAllureUuidHelper.GenerateHistoryID(result.FullName);
   result.Tag := TAllureTag(Test);
-  result.Labels.AddNew.SetPackage(ExtractFileName(GetModuleName(HInstance)));
+  result.Labels.AddNew.SetPackage(GetModuleName(HInstance));
   if Test.Fixture<>nil then begin
     result.Labels.AddNew.SetSuite(Test.Fixture.Name);
     if Test.Fixture.TestClass<>nil then
@@ -1408,4 +1435,6 @@ begin
   end;
 end;
 
+initialization
+  TDUnitXAllureBaseLogger.RegisterOptions;
 end.

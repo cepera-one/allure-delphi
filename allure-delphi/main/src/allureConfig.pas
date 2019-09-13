@@ -131,8 +131,12 @@ begin
         if v<>nil then
           fTitle := v.Value;
         v := av.FindValue('directory');
-        if v<>nil then
-          fDirectory := ExtractFilePath(GetModuleName(HInstance)) + v.Value;
+        if v<>nil then begin
+          fDirectory := v.Value;
+          if ExtractFileDrive(fDirectory)='' then
+            fDirectory := TPath.GetFullPath(fDirectory);
+          //fDirectory := ExtractFilePath(GetModuleName(HInstance)) + v.Value;
+        end;
         v := av.FindValue('links');
         if v<>nil then begin
           ls := v.AsType<TJSONArray>;
