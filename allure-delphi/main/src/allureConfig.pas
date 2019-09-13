@@ -116,33 +116,29 @@ procedure TAllureConfiguration.ReadFromJson(const json: TAllureString);
 //  }
 //}
 var
-  jv, av, v: TJSONValue;
+  jv, av: TJSONValue;
   ls: TJSONArray;
   i: Integer;
+  v: TAllureString;
 begin
   try
     fJSON := json;
     if json='' then exit;
-    jv := TJSONObject.ParseJSONValue(json, False, True);
+    jv := TJSONObject.ParseJSONValue(json, False{, True});
     if jv=nil then exit;
     try
       if jv.TryGetValue('allure', av) then begin
-        v := av.FindValue('title');
-        if v<>nil then
-          fTitle := v.Value;
-        v := av.FindValue('directory');
-        if v<>nil then begin
-          fDirectory := v.Value;
+        if av.TryGetValue<TAllureString>('title', v) then
+          fTitle := v;
+        if av.TryGetValue<TAllureString>('directory', v) then begin
+          fDirectory := v;
           if ExtractFileDrive(fDirectory)='' then
             fDirectory := TPath.GetFullPath(fDirectory);
           //fDirectory := ExtractFilePath(GetModuleName(HInstance)) + v.Value;
         end;
-        v := av.FindValue('links');
-        if v<>nil then begin
-          ls := v.AsType<TJSONArray>;
+        if av.TryGetValue<TJSONArray>('links', ls) then begin
           for i := 0 to ls.Count-1 do begin
-            v := ls.Items[i];
-            fLinks.Add(v.Value);
+            fLinks.Add(ls.Items[i].Value);
           end;
         end;
       end;

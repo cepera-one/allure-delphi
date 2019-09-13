@@ -336,9 +336,10 @@ var
   l: TListOfStrings;
 begin
   l := List;
-  if l.Count>0 then
-    result := l.ExtractAt(l.Count-1)
-  else
+  if l.Count>0 then begin
+    result := l.Items[l.Count-1];
+    l.Delete(l.Count-1);
+  end else
     result := '';
 end;
 
