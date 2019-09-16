@@ -14,6 +14,7 @@ type
   private class var
     fLifecycle: TAllureLifecycle;
   private
+    fConfigFile: string;
     fConfig: TAllureConfiguration;
     fStorage: TAllureThreadSafeDictionary;
     fThreadContext: TAllureThreadLocalStringList;
@@ -352,6 +353,7 @@ begin
   if not FileExists(JsonConfigurationFile) then
     raise EAllureException.Create('Allure config file missing: ' + JsonConfigurationFile);
   try
+    fConfigFile := JsonConfigurationFile;
     c := TFile.ReadAllText(JsonConfigurationFile);
     SetJsonConfiguration(c);
   except
@@ -626,7 +628,10 @@ end;
 procedure TAllureLifecycle.SetJsonConfiguration(const Value: TAllureString);
 begin
   GetAllureConfiguration;
-  fConfig.ReadFromJson(Value);
+  if fConfigFile<>'' then
+    fConfig.ReadFromJson(Value, ExtractFileDir(fConfigFile))
+  else
+    fConfig.ReadFromJson(Value);
 end;
 
 function TAllureLifecycle.StartAfterFixture(const ParentUuid,

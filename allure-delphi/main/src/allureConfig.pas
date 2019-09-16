@@ -25,7 +25,7 @@ type
     procedure SetDirectory(const Value: TAllureString); safecall;
     function GetLinks: IAllureStringSet; safecall;
 
-    procedure ReadFromJson(const json: TAllureString); safecall;
+    procedure ReadFromJson(const json: TAllureString; const CurrentDir: TAllureString = ''); safecall;
     property JsonConfiguration: TAllureString read GetJsonConfiguration;
 
     property Title: TAllureString read GetTitle write SetTitle;
@@ -71,7 +71,7 @@ begin
   result := fTitle;
 end;
 
-procedure TAllureConfiguration.ReadFromJson(const json: TAllureString);
+procedure TAllureConfiguration.ReadFromJson(const json: TAllureString; const CurrentDir: TAllureString = '');
 //..\..\..\Tests\TestData\allureConfig.json
 //{
 //  "allure": {
@@ -119,7 +119,7 @@ var
   jv, av: TJSONValue;
   ls: TJSONArray;
   i: Integer;
-  v: TAllureString;
+  v: String;
 begin
   try
     fJSON := json;
@@ -128,13 +128,16 @@ begin
     if jv=nil then exit;
     try
       if jv.TryGetValue('allure', av) then begin
-        if av.TryGetValue<TAllureString>('title', v) then
+        if av.TryGetValue<string>('title', v) then
           fTitle := v;
-        if av.TryGetValue<TAllureString>('directory', v) then begin
+        if av.TryGetValue<string>('directory', v) then begin
           fDirectory := v;
-          if ExtractFileDrive(fDirectory)='' then
-            fDirectory := TPath.GetFullPath(fDirectory);
-          //fDirectory := ExtractFilePath(GetModuleName(HInstance)) + v.Value;
+          if ExtractFileDrive(fDirectory)='' then begin
+            if CurrentDir<>'' then
+              fDirectory := IncludeTrailingPathDelimiter(CurrentDir) + fDirectory
+            else
+              fDirectory := TPath.GetFullPath(fDirectory);
+          end;
         end;
         if av.TryGetValue<TJSONArray>('links', ls) then begin
           for i := 0 to ls.Count-1 do begin

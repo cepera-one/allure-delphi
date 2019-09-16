@@ -88,7 +88,7 @@ type
     procedure SetDirectory(const Value: TAllureString); safecall;
     function GetLinks: IAllureStringSet; safecall;
 
-    procedure ReadFromJson(const json: TAllureString); safecall;
+    procedure ReadFromJson(const json: TAllureString; const CurrentDir: TAllureString = ''); safecall;
 
     property Title: TAllureString read GetTitle write SetTitle;
     property Directory: TAllureString read GetDirectory write SetDirectory;
