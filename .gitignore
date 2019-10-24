@@ -1,0 +1,9 @@
+*.dcu
+*.identcache
+*.dsk
+*.drc
+*.local
+/bin/
+*.~*
+*.tvsconfig
+*.stat

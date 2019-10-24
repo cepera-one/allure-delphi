@@ -1,0 +1,72 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{06E91556-6FDA-4798-9ABE-EB06E7DF322E}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="allure-delphi\main\AllureDelphi.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="allure-delphi\test\AllureDelphiTest.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="allure-DUnitX\test\AllureDUnitXLoggerTest.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="allure-pure-delphi\test\allurePureDelphiTest.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="AllureDelphi">
+        <MSBuild Projects="allure-delphi\main\AllureDelphi.dproj"/>
+    </Target>
+    <Target Name="AllureDelphi:Clean">
+        <MSBuild Projects="allure-delphi\main\AllureDelphi.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="AllureDelphi:Make">
+        <MSBuild Projects="allure-delphi\main\AllureDelphi.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="AllureDelphiTest">
+        <MSBuild Projects="allure-delphi\test\AllureDelphiTest.dproj"/>
+    </Target>
+    <Target Name="AllureDelphiTest:Clean">
+        <MSBuild Projects="allure-delphi\test\AllureDelphiTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="AllureDelphiTest:Make">
+        <MSBuild Projects="allure-delphi\test\AllureDelphiTest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="AllureDUnitXLoggerTest">
+        <MSBuild Projects="allure-DUnitX\test\AllureDUnitXLoggerTest.dproj"/>
+    </Target>
+    <Target Name="AllureDUnitXLoggerTest:Clean">
+        <MSBuild Projects="allure-DUnitX\test\AllureDUnitXLoggerTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="AllureDUnitXLoggerTest:Make">
+        <MSBuild Projects="allure-DUnitX\test\AllureDUnitXLoggerTest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="allurePureDelphiTest">
+        <MSBuild Projects="allure-pure-delphi\test\allurePureDelphiTest.dproj"/>
+    </Target>
+    <Target Name="allurePureDelphiTest:Clean">
+        <MSBuild Projects="allure-pure-delphi\test\allurePureDelphiTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="allurePureDelphiTest:Make">
+        <MSBuild Projects="allure-pure-delphi\test\allurePureDelphiTest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="AllureDelphi;AllureDelphiTest;AllureDUnitXLoggerTest;allurePureDelphiTest"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="AllureDelphi:Clean;AllureDelphiTest:Clean;AllureDUnitXLoggerTest:Clean;allurePureDelphiTest:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="AllureDelphi:Make;AllureDelphiTest:Make;AllureDUnitXLoggerTest:Make;allurePureDelphiTest:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
