@@ -1,4 +1,4 @@
-unit allureDelphiHelper;
+﻿unit allureDelphiHelper;
 
 interface
 
@@ -120,34 +120,40 @@ implementation
 procedure TAllureHelper.AddAttachment(const Name, AType: String;
   Content: Pointer; Size: UInt64; const FileExtension: String);
 begin
-  Lifecycle.AddAttachment(Name, AType, Content, Size, FileExtension);
+  if Lifecycle<>nil then
+    Lifecycle.AddAttachment(Name, AType, Content, Size, FileExtension);
 end;
 
 procedure TAllureHelper.AddAttachment(const Name, AType, Path: String);
 begin
-  Lifecycle.AddAttachment(Name, AType, Path);
+  if Lifecycle<>nil then
+    Lifecycle.AddAttachment(Name, AType, Path);
 end;
 
 procedure TAllureHelper.AddAttachment(const Name, AType, FileExtension: String;
   const Stream: IStream);
 begin
-  Lifecycle.AddAttachment(Name, AType, FileExtension, Stream);
+  if Lifecycle<>nil then
+    Lifecycle.AddAttachment(Name, AType, FileExtension, Stream);
 end;
 
 procedure TAllureHelper.AddAttachment(const Path, Name: String);
 begin
-  Lifecycle.AddAttachment(Path, Name);
+  if Lifecycle<>nil then
+    Lifecycle.AddAttachment(Path, Name);
 end;
 
 procedure TAllureHelper.AddAttachment(const Name, AType: String;
   const Content: TBytes; const FileExtension: String);
 begin
-  Lifecycle.AddAttachment(Name, AType, @Content[0], Length(Content), FileExtension);
+  if Lifecycle<>nil then
+    Lifecycle.AddAttachment(Name, AType, @Content[0], Length(Content), FileExtension);
 end;
 
 procedure TAllureHelper.AddAttachmentText(const Name, AValue: String);
 begin
-  AddAttachment(Name, TMimeTypesMap.PlainText, TEncoding.UTF8.GetBytes(AValue));
+  if Lifecycle<>nil then
+    AddAttachment(Name, TMimeTypesMap.PlainText, TEncoding.UTF8.GetBytes(AValue));
 end;
 
 procedure TAllureHelper.AddScreenshot(const Name: String;
@@ -160,6 +166,7 @@ var
   png: TPngImage;
   ms: TMemoryStream;
 begin
+  if Lifecycle=nil then exit;
   if Name='' then
     nm := 'Screenshot'
   else
